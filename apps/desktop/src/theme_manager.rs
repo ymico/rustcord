@@ -140,6 +140,8 @@ pub fn load_active_theme(theme_file: Option<&Path>) -> Option<CustomTheme> {
 
 /// Apply a CustomTheme to ui::design global state.
 pub fn apply_theme(theme: &CustomTheme) {
+	ui::design::reset_overrides();
+
 	if let Some(preset_name) = &theme.preset {
 		if let Some(variant) = ui::design::Variant::from_key(preset_name) {
 			ui::design::set_variant(variant);
@@ -360,15 +362,10 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 				} else {
 					if let Some(variant) = ui::design::Variant::from_key(arg) {
 						theme.preset = Some(variant.key().to_string());
-						let (widget_r, _) = variant.default_radius();
-						theme.radius = Some(widget_r);
-						if variant == ui::design::Variant::Pixeled {
-							theme.square_avatars = Some(true);
-							theme.pixel_font = Some(true);
-						} else if variant == ui::design::Variant::Smooth {
-							theme.square_avatars = Some(false);
-							theme.pixel_font = Some(false);
-						}
+						theme.radius = None;
+						theme.square_avatars = None;
+						theme.pixel_font = None;
+						theme.accent = None;
 					} else {
 						eprintln!("Error: Unknown theme preset '{}'. Run 'rustcord theme list' to view available presets.", arg);
 						return Some(1);

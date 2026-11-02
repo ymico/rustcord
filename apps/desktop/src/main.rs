@@ -6556,27 +6556,20 @@ impl eframe::App for Desktop {
 			let config_path = theme_manager::default_config_path();
 			let mut theme = theme_manager::load_from_file(&config_path).unwrap_or_default();
 			theme.preset = Some(variant.key().to_string());
-			let (widget_r, _) = variant.default_radius();
-			theme.radius = Some(widget_r);
-			if variant == ui::design::Variant::Pixeled {
-				theme.square_avatars = Some(true);
-				theme.pixel_font = Some(true);
-			} else if variant == ui::design::Variant::Smooth {
-				theme.square_avatars = Some(false);
-				theme.pixel_font = Some(false);
-			}
+			theme.radius = None;
+			theme.square_avatars = None;
+			theme.pixel_font = None;
+			theme.accent = None;
 			let _ = theme_manager::save_to_file(&theme, &config_path);
 		}
 		if self.messaging.theme_customization_changed {
 			self.messaging.theme_customization_changed = false;
 			let config_path = theme_manager::default_config_path();
 			let mut theme = theme_manager::load_from_file(&config_path).unwrap_or_default();
-			theme.radius = Some(ui::design::effective_widget_radius());
+			theme.radius = ui::design::corner_radius();
 			theme.square_avatars = ui::design::square_avatars();
-			theme.pixel_font = Some(ui::design::is_pixel_font());
-			if let Some(accent) = self.messaging.primary_color {
-				theme.accent = Some(theme_manager::format_hex(accent));
-			}
+			theme.pixel_font = ui::design::pixel_font_override();
+			theme.accent = self.messaging.primary_color.map(theme_manager::format_hex);
 			let _ = theme_manager::save_to_file(&theme, &config_path);
 		}
 		let switch = self.messaging.switch_account_requested.take();

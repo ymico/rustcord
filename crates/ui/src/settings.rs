@@ -1222,8 +1222,11 @@ impl MessagingUi {
 						{
 							if let Some(variant) = variant {
 								design::set_variant(variant);
+								design::reset_overrides();
+								self.primary_color = None;
 								design::apply(ui.ctx());
 								self.theme_variant_changed = Some(variant);
+								self.theme_customization_changed = false;
 							}
 							self.extensions
 								.queue(ui.ctx(), crate::ExtensionRequest::SelectTheme { id });
@@ -1237,51 +1240,8 @@ impl MessagingUi {
 	fn theme_tuning_settings(&mut self, ui: &mut egui::Ui) {
 		design::group(
 			ui,
-			"Theme Customization & Pixel Mode",
+			"Geometry & Pixel Customization",
 			|ui| {
-				// Quick Preset Selection
-				ui.horizontal_wrapped(|ui| {
-					ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
-					let current = design::variant();
-					for variant in [
-						design::Variant::Standard,
-						design::Variant::Pixeled,
-						design::Variant::Smooth,
-						design::Variant::Eclipse,
-						design::Variant::Nord,
-						design::Variant::Dracula,
-						design::Variant::Catppuccin,
-						design::Variant::Solarized,
-					] {
-						let is_selected = current == variant;
-						let label = match variant {
-							design::Variant::Pixeled => "🎮 Pixeled",
-							design::Variant::Smooth => "🌊 Smooth",
-							design::Variant::Standard => "Standard",
-							design::Variant::Eclipse => "OLED",
-							other => other.label(),
-						};
-						let btn = egui::Button::new(label).selected(is_selected);
-						if ui.add(btn).clicked() && !is_selected {
-							design::set_variant(variant);
-							let (r, _) = variant.default_radius();
-							design::set_corner_radius(Some(r));
-							if variant == design::Variant::Pixeled {
-								design::set_square_avatars(Some(true));
-								design::set_pixel_font(Some(true));
-							} else if variant == design::Variant::Smooth {
-								design::set_square_avatars(Some(false));
-								design::set_pixel_font(Some(false));
-							}
-							design::apply(ui.ctx());
-							self.theme_variant_changed = Some(variant);
-							self.theme_customization_changed = true;
-						}
-					}
-				});
-
-				design::card_divider(ui);
-
 				// Corner Radius Slider & Quick Presets
 				let mut current_radius = design::effective_widget_radius();
 				ui.horizontal(|ui| {
@@ -1312,20 +1272,34 @@ impl MessagingUi {
 				design::card_divider(ui);
 
 				// Pixel Mode Toggles
-				let mut square = design::square_avatars().unwrap_or_else(|| {
-					design::effective_widget_radius() == 0 || design::variant() == design::Variant::Pixeled
-				});
-				if ui.checkbox(&mut square, "Square avatars & server icons (Pixel mode)").changed() {
-					design::set_square_avatars(Some(square));
-					ui.ctx().request_repaint();
-					self.theme_customization_changed = true;
-				}
+				ui.horizontal(|ui| {
+					let mut square = design::square_avatars().unwrap_or_else(|| {
+						design::effective_widget_radius() == 0 || design::variant() == design::Variant::Pixeled
+					});
+					if ui.checkbox(&mut square, "Square avatars & server icons").changed() {
+						design::set_square_avatars(Some(square));
+						ui.ctx().request_repaint();
+						self.theme_customization_changed = true;
+					}
 
-				let mut pixel_font = design::is_pixel_font();
-				if ui.checkbox(&mut pixel_font, "Retro pixel / monospace typography").changed() {
-					design::set_pixel_font(Some(pixel_font));
-					design::apply(ui.ctx());
-					self.theme_customization_changed = true;
+					ui.add_space(16.0);
+
+					let mut pixel_font = design::is_pixel_font();
+					if ui.checkbox(&mut pixel_font, "Retro pixel / monospace font").changed() {
+						design::set_pixel_font(Some(pixel_font));
+						design::apply(ui.ctx());
+						self.theme_customization_changed = true;
+					}
+				});
+
+				if design::corner_radius().is_some() || design::square_avatars().is_some() || design::pixel_font_override().is_some() || self.primary_color.is_some() {
+					design::card_divider(ui);
+					if ui.button("↺ Reset to theme preset defaults").clicked() {
+						design::reset_overrides();
+						self.primary_color = None;
+						design::apply(ui.ctx());
+						self.theme_customization_changed = true;
+					}
 				}
 			},
 		);
@@ -1723,12 +1697,7 @@ fn preset_swatch(
 		painter.rect_filled(rect, 6, colors.hover);
 	}
 	let center = egui::pos2(rect.center().x, rect.top() + 24.0);
-	let [top, bottom] = swatch.backdrop.unwrap_or_else(|| {
-		// Opaque presets run from their lightest surface to their darkest one.
-		let mut surfaces = [swatch.chat, swatch.selected, swatch.base];
-		surfaces.sort_by(|a, b| design::luminance(*b).total_cmp(&design::luminance(*a)));
-		[surfaces[0], surfaces[2]]
-	});
+	let [top, bottom] = swatch.backdrop.unwrap_or([swatch.accent, swatch.chat]);
 	gradient_circle(painter, center, 20.0, top, bottom);
 	painter.circle_stroke(
 		center,

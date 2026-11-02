@@ -209,6 +209,13 @@ static CORNER_RADIUS: AtomicU8 = AtomicU8::new(255);
 static SQUARE_AVATARS: AtomicU8 = AtomicU8::new(255);
 static PIXEL_FONT: AtomicU8 = AtomicU8::new(255);
 
+pub fn reset_overrides() {
+	CORNER_RADIUS.store(255, Ordering::Relaxed);
+	SQUARE_AVATARS.store(255, Ordering::Relaxed);
+	PIXEL_FONT.store(255, Ordering::Relaxed);
+	PRIMARY_COLOR.store(0, Ordering::Relaxed);
+}
+
 pub fn corner_radius() -> Option<u8> {
 	let val = CORNER_RADIUS.load(Ordering::Relaxed);
 	if val == 255 { None } else { Some(val) }
@@ -280,6 +287,11 @@ pub fn set_pixel_font(pixel_font: Option<bool>) {
 		None => 255,
 	};
 	PIXEL_FONT.store(val, Ordering::Relaxed);
+}
+
+pub fn pixel_font_override() -> Option<bool> {
+	let val = PIXEL_FONT.load(Ordering::Relaxed);
+	if val == 255 { None } else { Some(val == 1) }
 }
 
 pub fn primary_color() -> Option<[u8; 3]> {
@@ -487,15 +499,22 @@ pub fn builtin_colors(dark: bool, variant: Variant) -> Palette {
 			canvas: Color32::WHITE,
 			surface: rgb(0xf2f2f4),
 		},
-		Variant::Eclipse => dark_common(
-			Color32::BLACK,
-			rgb(0x070708),
-			rgb(0x070708),
-			rgb(0x141416),
-			rgb(0x17171a),
-			rgb(0x222226),
-			rgb(0x1c1c20),
-		),
+		Variant::Eclipse => {
+			let mut p = dark_common(
+				Color32::BLACK,
+				rgb(0x070708),
+				rgb(0x070708),
+				rgb(0x141416),
+				rgb(0x17171a),
+				rgb(0x222226),
+				rgb(0x1c1c20),
+			);
+			p.accent = rgb(0xa855f7);
+			p.accent_text = Color32::BLACK;
+			p.mention_bg = Color32::from_rgba_premultiplied(168, 85, 247, 38);
+			p.mention_text = rgb(0xa855f7);
+			p
+		},
 		Variant::Slate => dark_common(
 			rgb(0x1b1f2a),
 			rgb(0x262b38),
@@ -505,60 +524,116 @@ pub fn builtin_colors(dark: bool, variant: Variant) -> Palette {
 			rgb(0x3d4456),
 			rgb(0x3a4152),
 		),
-		Variant::Smooth => dark_common(
-			rgb(0x13141c),
-			rgb(0x181924),
-			rgb(0x1e202e),
-			rgb(0x24283b),
-			rgb(0x2a2f46),
-			rgb(0x343b58),
-			rgb(0x2a2f46),
-		),
-		Variant::Pixeled => dark_common(
-			rgb(0x08080a),
-			rgb(0x0d0e13),
-			rgb(0x121319),
-			rgb(0x181a22),
-			rgb(0x20232e),
-			rgb(0x2a2e3d),
-			rgb(0x252834),
-		),
-		Variant::Nord => dark_common(
-			rgb(0x1a1e27),
-			rgb(0x202430),
-			rgb(0x242935),
-			rgb(0x2c3242),
-			rgb(0x333a4d),
-			rgb(0x3b4358),
-			rgb(0x333a4c),
-		),
-		Variant::Dracula => dark_common(
-			rgb(0x181920),
-			rgb(0x1e1f29),
-			rgb(0x21222c),
-			rgb(0x282a36),
-			rgb(0x343746),
-			rgb(0x44475a),
-			rgb(0x383a48),
-		),
-		Variant::Catppuccin => dark_common(
-			rgb(0x11111b),
-			rgb(0x181825),
-			rgb(0x1e1e2e),
-			rgb(0x242638),
-			rgb(0x313244),
-			rgb(0x45475a),
-			rgb(0x313244),
-		),
-		Variant::Solarized => dark_common(
-			rgb(0x00141a),
-			rgb(0x001b22),
-			rgb(0x00212b),
-			rgb(0x073642),
-			rgb(0x0a404e),
-			rgb(0x0e4c5c),
-			rgb(0x073642),
-		),
+		Variant::Smooth => {
+			let mut p = dark_common(
+				rgb(0x13141c),
+				rgb(0x181924),
+				rgb(0x1e202e),
+				rgb(0x24283b),
+				rgb(0x2a2f46),
+				rgb(0x343b58),
+				rgb(0x2a2f46),
+			);
+			p.accent = rgb(0x7aa2f7);
+			p.accent_text = Color32::BLACK;
+			p.link = rgb(0x7dcfff);
+			p.text_strong = rgb(0xf0f4ff);
+			p.mention_bg = Color32::from_rgba_premultiplied(122, 162, 247, 38);
+			p.mention_text = rgb(0x7aa2f7);
+			p
+		}
+		Variant::Pixeled => {
+			let mut p = dark_common(
+				rgb(0x08080a),
+				rgb(0x0d0e13),
+				rgb(0x121319),
+				rgb(0x181a22),
+				rgb(0x20232e),
+				rgb(0x2a2e3d),
+				rgb(0x252834),
+			);
+			p.accent = rgb(0x00ff66);
+			p.accent_text = Color32::BLACK;
+			p.link = rgb(0x00e5ff);
+			p.positive = rgb(0x00ff66);
+			p.text_strong = rgb(0x00ff66);
+			p.text = rgb(0xd8ffd8);
+			p.mention_bg = Color32::from_rgba_premultiplied(0, 255, 102, 38);
+			p.mention_text = rgb(0x00ff66);
+			p
+		}
+		Variant::Nord => {
+			let mut p = dark_common(
+				rgb(0x1a1e27),
+				rgb(0x202430),
+				rgb(0x242935),
+				rgb(0x2c3242),
+				rgb(0x333a4d),
+				rgb(0x3b4358),
+				rgb(0x333a4c),
+			);
+			p.accent = rgb(0x88c0d0);
+			p.accent_text = Color32::BLACK;
+			p.link = rgb(0x81a1c1);
+			p.text_strong = rgb(0xeceff4);
+			p.mention_bg = Color32::from_rgba_premultiplied(136, 192, 208, 38);
+			p.mention_text = rgb(0x88c0d0);
+			p
+		}
+		Variant::Dracula => {
+			let mut p = dark_common(
+				rgb(0x181920),
+				rgb(0x1e1f29),
+				rgb(0x21222c),
+				rgb(0x282a36),
+				rgb(0x343746),
+				rgb(0x44475a),
+				rgb(0x383a48),
+			);
+			p.accent = rgb(0xbd93f9);
+			p.accent_text = Color32::BLACK;
+			p.link = rgb(0x8be9fd);
+			p.text_strong = rgb(0xf8f8f2);
+			p.mention_bg = Color32::from_rgba_premultiplied(189, 147, 249, 38);
+			p.mention_text = rgb(0xbd93f9);
+			p
+		}
+		Variant::Catppuccin => {
+			let mut p = dark_common(
+				rgb(0x11111b),
+				rgb(0x181825),
+				rgb(0x1e1e2e),
+				rgb(0x242638),
+				rgb(0x313244),
+				rgb(0x45475a),
+				rgb(0x313244),
+			);
+			p.accent = rgb(0xcba6f7);
+			p.accent_text = Color32::BLACK;
+			p.link = rgb(0x89b4fa);
+			p.text_strong = rgb(0xcdd6f4);
+			p.mention_bg = Color32::from_rgba_premultiplied(203, 166, 247, 38);
+			p.mention_text = rgb(0xcba6f7);
+			p
+		}
+		Variant::Solarized => {
+			let mut p = dark_common(
+				rgb(0x00141a),
+				rgb(0x001b22),
+				rgb(0x00212b),
+				rgb(0x073642),
+				rgb(0x0a404e),
+				rgb(0x0e4c5c),
+				rgb(0x073642),
+			);
+			p.accent = rgb(0x2aa198);
+			p.accent_text = Color32::BLACK;
+			p.link = rgb(0x268bd2);
+			p.text_strong = rgb(0x93a1a1);
+			p.mention_bg = Color32::from_rgba_premultiplied(42, 161, 152, 38);
+			p.mention_text = rgb(0x2aa198);
+			p
+		}
 		Variant::Nightfall => gradient([0x35519f, 0x1b1440], 0x2f3451),
 		Variant::Ember => gradient([0x8c2340, 0x140609], 0x41262e),
 		Variant::Verdant => gradient([0x2b6350, 0x081a15], 0x283934),
