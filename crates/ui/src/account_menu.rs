@@ -236,8 +236,13 @@ impl MessagingUi {
 				vec2(72.0, 72.0),
 			);
 			// Thick popover-coloured ring, as Discord punches the avatar out of the banner.
-			ui.painter()
-				.circle_filled(avatar.center(), 42.0, colors.raised);
+			let r = crate::design::avatar_radius(72.0);
+			if r == 0 {
+				ui.painter().rect_filled(avatar.expand(6.0), 0.0, colors.raised);
+			} else {
+				ui.painter()
+					.circle_filled(avatar.center(), 42.0, colors.raised);
+			}
 			ui.scope_builder(egui::UiBuilder::new().max_rect(avatar), |ui| {
 				self.avatars.with_avatar_animation(true, |avatars| {
 					avatars.show(ui, user, 72.0, state.demo)
@@ -245,7 +250,11 @@ impl MessagingUi {
 			});
 			// Same 6 px ring as the avatar, so the dot is cut out of the banner alike.
 			let dot = avatar.right_bottom() - egui::Vec2::splat(12.0);
-			ui.painter().circle_filled(dot, 17.5, colors.raised);
+			if r == 0 {
+				ui.painter().rect_filled(egui::Rect::from_center_size(dot, egui::Vec2::splat(35.0)), 0.0, colors.raised);
+			} else {
+				ui.painter().circle_filled(dot, 17.5, colors.raised);
+			}
 			presence_dot(
 				ui.painter(),
 				dot,

@@ -17,6 +17,12 @@ pub struct CustomTheme {
 	/// Custom window & menu corner radius in logical pixels
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub window_radius: Option<u8>,
+	/// Force square avatars and server icons (true = sharp square, false = circular/squircle)
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub square_avatars: Option<bool>,
+	/// Enable retro monospace pixel font for the whole UI
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub pixel_font: Option<bool>,
 	/// Accent color in hex format (e.g. "#00ff66", "#7aa2f7", "#5865f2")
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub accent: Option<String>,
@@ -140,6 +146,18 @@ pub fn apply_theme(theme: &CustomTheme) {
 		}
 	}
 
+	if let Some(radius) = theme.radius {
+		ui::design::set_corner_radius(Some(radius));
+	}
+
+	if let Some(square) = theme.square_avatars {
+		ui::design::set_square_avatars(Some(square));
+	}
+
+	if let Some(pixel_font) = theme.pixel_font {
+		ui::design::set_pixel_font(Some(pixel_font));
+	}
+
 	if let Some(accent) = &theme.accent {
 		if let Some(rgb) = parse_hex_color(accent) {
 			ui::design::set_primary_color(Some(rgb));
@@ -178,6 +196,8 @@ pub fn template_theme() -> CustomTheme {
 		preset: Some("pixeled".into()),
 		radius: Some(0),
 		window_radius: Some(0),
+		square_avatars: Some(true),
+		pixel_font: Some(true),
 		accent: Some("#00ff66".into()),
 		colors,
 	}
@@ -259,6 +279,12 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 						if let Some(r) = theme.radius {
 							println!("Radius: {}px", r);
 						}
+						if let Some(sq) = theme.square_avatars {
+							println!("Square Avatars: {}", sq);
+						}
+						if let Some(pf) = theme.pixel_font {
+							println!("Pixel Font: {}", pf);
+						}
 					}
 					Err(e) => {
 						eprintln!("Error reading {}: {}", config_path.display(), e);
@@ -273,7 +299,7 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 		}
 		"set" => {
 			if args.len() < 4 {
-				eprintln!("Usage: rustcord theme set <preset> [--accent <#hex>]");
+				eprintln!("Usage: rustcord theme set <preset> [--accent <#hex>] [--radius <px>] [--square-avatars [true|false]] [--pixel-font [true|false]]");
 				eprintln!("       rustcord theme set --accent <#hex>");
 				eprintln!("Run 'rustcord theme list' for available presets.");
 				return Some(1);
@@ -299,6 +325,35 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 						eprintln!("Error: Missing value for --accent");
 						return Some(1);
 					}
+				} else if arg == "--radius" {
+					if let Some(val) = args.get(idx + 1).and_then(|s| s.parse::<u8>().ok()) {
+						theme.radius = Some(val);
+						idx += 2;
+						continue;
+					} else {
+						eprintln!("Error: Expected a number 0..=32 for --radius");
+						return Some(1);
+					}
+				} else if arg == "--square-avatars" {
+					if let Some(next) = args.get(idx + 1) {
+						if let Ok(b) = next.parse::<bool>() {
+							theme.square_avatars = Some(b);
+							idx += 2;
+							continue;
+						}
+					}
+					theme.square_avatars = Some(true);
+					idx += 1;
+				} else if arg == "--pixel-font" {
+					if let Some(next) = args.get(idx + 1) {
+						if let Ok(b) = next.parse::<bool>() {
+							theme.pixel_font = Some(b);
+							idx += 2;
+							continue;
+						}
+					}
+					theme.pixel_font = Some(true);
+					idx += 1;
 				} else if parse_hex_color(arg).is_some() {
 					theme.accent = Some(arg.clone());
 					idx += 1;
@@ -307,6 +362,13 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 						theme.preset = Some(variant.key().to_string());
 						let (widget_r, _) = variant.default_radius();
 						theme.radius = Some(widget_r);
+						if variant == ui::design::Variant::Pixeled {
+							theme.square_avatars = Some(true);
+							theme.pixel_font = Some(true);
+						} else if variant == ui::design::Variant::Smooth {
+							theme.square_avatars = Some(false);
+							theme.pixel_font = Some(false);
+						}
 					} else {
 						eprintln!("Error: Unknown theme preset '{}'. Run 'rustcord theme list' to view available presets.", arg);
 						return Some(1);
@@ -326,6 +388,15 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 			}
 			if let Some(a) = &theme.accent {
 				println!("  Accent: {}", a);
+			}
+			if let Some(r) = theme.radius {
+				println!("  Radius: {}px", r);
+			}
+			if let Some(sq) = theme.square_avatars {
+				println!("  Square Avatars: {}", sq);
+			}
+			if let Some(pf) = theme.pixel_font {
+				println!("  Pixel Font: {}", pf);
 			}
 			Some(0)
 		}
@@ -348,5 +419,76 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 			eprintln!("Unknown command 'rustcord theme {}'. Run 'rustcord theme list' or 'rustcord theme help'.", other);
 			Some(1)
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_hex_color_parsing() {
+		assert_eq!(parse_hex_color("#ff0000"), Some([255, 0, 0]));
+		assert_eq!(parse_hex_color("00ff00"), Some([0, 255, 0]));
+		assert_eq!(parse_hex_color("#00f"), Some([0, 0, 255]));
+		assert_eq!(format_hex([0, 255, 102]), "#00ff66");
+	}
+
+	#[test]
+	fn test_custom_theme_serialization() {
+		let theme = CustomTheme {
+			name: Some("test".into()),
+			preset: Some("pixeled".into()),
+			radius: Some(0),
+			window_radius: Some(0),
+			square_avatars: Some(true),
+			pixel_font: Some(true),
+			accent: Some("#00ff66".into()),
+			colors: Default::default(),
+		};
+
+		let json = serde_json::to_string(&theme).unwrap();
+		let deserialized: CustomTheme = serde_json::from_str(&json).unwrap();
+		assert_eq!(deserialized.preset.as_deref(), Some("pixeled"));
+		assert_eq!(deserialized.radius, Some(0));
+		assert_eq!(deserialized.square_avatars, Some(true));
+		assert_eq!(deserialized.pixel_font, Some(true));
+	}
+
+	#[test]
+	fn test_apply_theme() {
+		let theme = CustomTheme {
+			name: None,
+			preset: Some("pixeled".into()),
+			radius: Some(0),
+			window_radius: None,
+			square_avatars: Some(true),
+			pixel_font: Some(true),
+			accent: Some("#00ff66".into()),
+			colors: Default::default(),
+		};
+		apply_theme(&theme);
+		assert_eq!(ui::design::variant(), ui::design::Variant::Pixeled);
+		assert_eq!(ui::design::effective_widget_radius(), 0);
+		assert_eq!(ui::design::avatar_radius(40.0), 0);
+		assert!(ui::design::is_pixel_font());
+		assert_eq!(ui::design::primary_color(), Some([0, 255, 102]));
+
+		// Reset to default
+		let reset = CustomTheme {
+			name: None,
+			preset: Some("default".into()),
+			radius: Some(6),
+			window_radius: None,
+			square_avatars: Some(false),
+			pixel_font: Some(false),
+			accent: None,
+			colors: Default::default(),
+		};
+		apply_theme(&reset);
+		assert_eq!(ui::design::variant(), ui::design::Variant::Standard);
+		assert_eq!(ui::design::effective_widget_radius(), 6);
+		assert_eq!(ui::design::avatar_radius(40.0), 20);
+		assert!(!ui::design::is_pixel_font());
 	}
 }

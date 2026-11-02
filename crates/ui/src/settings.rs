@@ -772,8 +772,13 @@ impl MessagingUi {
 					banner.left_bottom() + egui::vec2(16.0, -40.0),
 					egui::Vec2::splat(80.0),
 				);
-				ui.painter()
-					.circle_filled(avatar.center(), 44.0, colors.raised);
+				let r = design::avatar_radius(80.0);
+				if r == 0 {
+					ui.painter().rect_filled(avatar.expand(4.0), 0.0, colors.raised);
+				} else {
+					ui.painter()
+						.circle_filled(avatar.center(), 44.0, colors.raised);
+				}
 				ui.scope_builder(egui::UiBuilder::new().max_rect(avatar), |ui| {
 					if let Some(user) = &state.user {
 						self.avatars.with_avatar_animation(true, |avatars| {
@@ -1005,6 +1010,7 @@ impl MessagingUi {
 		));
 		theme_preference_cards(ui);
 		self.colour_preset_settings(ui);
+		self.theme_tuning_settings(ui);
 		self.custom_font.show(ui);
 		design::group(
 			ui,
@@ -1224,6 +1230,103 @@ impl MessagingUi {
 						}
 					}
 				});
+			},
+		);
+	}
+
+	fn theme_tuning_settings(&mut self, ui: &mut egui::Ui) {
+		design::group(
+			ui,
+			"Theme Customization & Pixel Mode",
+			|ui| {
+				// Quick Preset Selection
+				ui.horizontal_wrapped(|ui| {
+					ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
+					let current = design::variant();
+					for variant in [
+						design::Variant::Standard,
+						design::Variant::Pixeled,
+						design::Variant::Smooth,
+						design::Variant::Eclipse,
+						design::Variant::Nord,
+						design::Variant::Dracula,
+						design::Variant::Catppuccin,
+						design::Variant::Solarized,
+					] {
+						let is_selected = current == variant;
+						let label = match variant {
+							design::Variant::Pixeled => "🎮 Pixeled",
+							design::Variant::Smooth => "🌊 Smooth",
+							design::Variant::Standard => "Standard",
+							design::Variant::Eclipse => "OLED",
+							other => other.label(),
+						};
+						let btn = egui::Button::new(label).selected(is_selected);
+						if ui.add(btn).clicked() && !is_selected {
+							design::set_variant(variant);
+							let (r, _) = variant.default_radius();
+							design::set_corner_radius(Some(r));
+							if variant == design::Variant::Pixeled {
+								design::set_square_avatars(Some(true));
+								design::set_pixel_font(Some(true));
+							} else if variant == design::Variant::Smooth {
+								design::set_square_avatars(Some(false));
+								design::set_pixel_font(Some(false));
+							}
+							design::apply(ui.ctx());
+							self.theme_variant_changed = Some(variant);
+							self.theme_customization_changed = true;
+						}
+					}
+				});
+
+				design::card_divider(ui);
+
+				// Corner Radius Slider & Quick Presets
+				let mut current_radius = design::effective_widget_radius();
+				ui.horizontal(|ui| {
+					ui.label("Corner Radius:");
+					if ui.add(egui::Slider::new(&mut current_radius, 0..=16).suffix(" px")).changed() {
+						design::set_corner_radius(Some(current_radius));
+						design::apply(ui.ctx());
+						self.theme_customization_changed = true;
+					}
+					ui.add_space(8.0);
+					if ui.button("0px (Pixel)").on_hover_text("Sharp pixel corners (0px)").clicked() {
+						design::set_corner_radius(Some(0));
+						design::apply(ui.ctx());
+						self.theme_customization_changed = true;
+					}
+					if ui.button("6px (Default)").on_hover_text("Standard Discord radius (6px)").clicked() {
+						design::set_corner_radius(Some(6));
+						design::apply(ui.ctx());
+						self.theme_customization_changed = true;
+					}
+					if ui.button("12px (Smooth)").on_hover_text("Extra smooth rounded radius (12px)").clicked() {
+						design::set_corner_radius(Some(12));
+						design::apply(ui.ctx());
+						self.theme_customization_changed = true;
+					}
+				});
+
+				design::card_divider(ui);
+
+				// Pixel Mode Toggles
+				let mut square = design::square_avatars().unwrap_or_else(|| {
+					design::effective_widget_radius() == 0 || design::variant() == design::Variant::Pixeled
+				});
+				if ui.checkbox(&mut square, "Square avatars & server icons (Pixel mode)").changed() {
+					design::set_square_avatars(Some(square));
+					ui.ctx().request_repaint();
+					self.theme_customization_changed = true;
+				}
+
+				let mut pixel_font = design::is_pixel_font();
+				if ui.checkbox(&mut pixel_font, "Retro pixel / monospace typography").changed() {
+					design::set_pixel_font(Some(pixel_font));
+					design::apply(ui.ctx());
+					self.theme_customization_changed = true;
+				}
 			},
 		);
 	}

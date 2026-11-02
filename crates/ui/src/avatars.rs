@@ -928,21 +928,37 @@ impl Avatars {
 					self.attempts.insert(key.clone(), (Instant::now(), false));
 					self.accept(ui.ctx(), key.clone(), Some(image));
 				}
-				if !self.paint(ui, &key, rect, (size * 0.25) as u8) {
-					ui.painter()
-						.circle_filled(rect.center(), size * 0.4, colors.raised);
+				let r = crate::design::avatar_radius(size);
+				if !self.paint(ui, &key, rect, if r == 0 { 0 } else { (size * 0.25) as u8 }) {
+					if r == 0 {
+						ui.painter().rect_filled(rect, 0.0, colors.raised);
+					} else {
+						ui.painter()
+							.circle_filled(rect.center(), size * 0.4, colors.raised);
+					}
 					if !demo {
 						self.request(key);
 					}
 				}
 			} else {
-				ui.painter()
-					.circle_filled(rect.center(), size * 0.4, colors.raised);
-				ui.painter().circle_stroke(
-					rect.center(),
-					size * 0.4,
-					egui::Stroke::new(1.0, colors.border),
-				);
+				let r = crate::design::avatar_radius(size);
+				if r == 0 {
+					ui.painter().rect_filled(rect, 0.0, colors.raised);
+					ui.painter().rect_stroke(
+						rect,
+						0.0,
+						egui::Stroke::new(1.0, colors.border),
+						egui::StrokeKind::Inside,
+					);
+				} else {
+					ui.painter()
+						.circle_filled(rect.center(), size * 0.4, colors.raised);
+					ui.painter().circle_stroke(
+						rect.center(),
+						size * 0.4,
+						egui::Stroke::new(1.0, colors.border),
+					);
+				}
 			}
 		}
 		response
@@ -1030,7 +1046,8 @@ impl Avatars {
 			let rect = ui
 				.layout()
 				.align_size_within_rect(egui::Vec2::splat(size), response.rect);
-			if !self.paint(ui, &key, rect, (size * 0.5) as u8) {
+			let r = crate::design::avatar_radius(size);
+			if !self.paint(ui, &key, rect, r) {
 				crate::design::paint_avatar(ui, &profile.user.name, size, response.rect);
 				if !demo {
 					self.request(key);
@@ -1175,7 +1192,8 @@ impl Avatars {
 				.filter(|hash| model::valid_avatar_hash(hash))
 		{
 			let key = format!("group-icon-{}-{hash}", channel.id);
-			painted = self.paint(ui, &key, rect, (size / 2.0) as u8);
+			let r = crate::design::avatar_radius(size);
+			painted = self.paint(ui, &key, rect, r);
 			if !painted && !demo {
 				self.request(key);
 			}
@@ -1183,6 +1201,7 @@ impl Avatars {
 		if !painted && channel.icon.is_none() && !channel.recipients.is_empty() {
 			let users = &channel.recipients;
 			let diameter = if users.len() > 1 { size * 0.66 } else { size };
+			let r = crate::design::avatar_radius(size);
 			for (index, user) in users.iter().take(2).enumerate() {
 				let corner = if index == 0 {
 					rect.left_top()
@@ -1191,19 +1210,32 @@ impl Avatars {
 				};
 				let avatar = egui::Rect::from_min_size(corner, egui::Vec2::splat(diameter));
 				if index == 1 {
-					ui.painter().circle_filled(
-						avatar.center(),
-						diameter * 0.5 + size * 0.04,
-						colors.sidebar,
-					);
+					if r == 0 {
+						ui.painter().rect_filled(
+							avatar.expand(size * 0.04),
+							0.0,
+							colors.sidebar,
+						);
+					} else {
+						ui.painter().circle_filled(
+							avatar.center(),
+							diameter * 0.5 + size * 0.04,
+							colors.sidebar,
+						);
+					}
 				}
 				self.paint_user(ui, user, diameter, avatar, demo);
 			}
 			painted = true;
 		}
 		if !painted {
-			ui.painter()
-				.circle_filled(rect.center(), size / 2.0, colors.raised);
+			let r = crate::design::avatar_radius(size);
+			if r == 0 {
+				ui.painter().rect_filled(rect, 0.0, colors.raised);
+			} else {
+				ui.painter()
+					.circle_filled(rect.center(), size / 2.0, colors.raised);
+			}
 			crate::icons::paint(
 				ui.painter(),
 				crate::icons::Icon::People,
@@ -1272,7 +1304,8 @@ impl Avatars {
 		let (rect, response) =
 			ui.allocate_exact_size(egui::Vec2::splat(size), egui::Sense::click_and_drag());
 		let highlight = selected || response.hovered() || response.has_focus();
-		let squircle = size * 0.29;
+		let is_pixel = crate::design::avatar_radius(size) == 0;
+		let squircle = if is_pixel { 0.0 } else { size * 0.29 };
 		// Only the rail animates; settings previews and drag previews keep the static squircle.
 		if hover_name || !ui.is_rect_visible(rect) {
 			self.paint_guild_face(ui, guild, rect, demo, f32::from(highlight), squircle as u8);
@@ -1294,7 +1327,11 @@ impl Avatars {
 			let face =
 				egui::Rect::from_center_size(rect.center(), rect.size() * (1.0 - 0.05 * press));
 			// Rests rounder and morphs to the squircle when hovered or selected, like Discord.
-			let radius = egui::lerp(size * 0.4..=squircle, lit).round() as u8;
+			let radius = if is_pixel {
+				0
+			} else {
+				egui::lerp(size * 0.4..=squircle, lit).round() as u8
+			};
 			self.paint_guild_face(ui, guild, face, demo, lit, radius);
 		}
 		response.widget_info(|| {
@@ -1371,7 +1408,14 @@ impl Avatars {
 				rect.center(),
 				egui::Align2::CENTER_CENTER,
 				short,
-				egui::FontId::new(initials_size, crate::design::medium_family(ui.ctx())),
+				egui::FontId::new(
+					initials_size,
+					if crate::design::is_pixel_font() {
+						egui::FontFamily::Monospace
+					} else {
+						crate::design::medium_family(ui.ctx())
+					},
+				),
 				colors.text.lerp_to_gamma(colors.accent_text, highlight),
 			);
 		}
@@ -1527,7 +1571,8 @@ impl Avatars {
 					.insert(key.to_string(), (Instant::now(), false));
 				self.accept(ui.ctx(), key.to_string(), Some(image));
 			}
-			if !self.paint(ui, &key, rect, (size * 0.5) as u8) {
+			let r = crate::design::avatar_radius(size);
+			if !self.paint(ui, &key, rect, r) {
 				crate::design::paint_avatar(ui, &user.name, size, rect);
 				if !demo {
 					self.request(key.to_string());

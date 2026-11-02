@@ -1135,6 +1135,30 @@ pub(crate) fn paint_status(
 		);
 		return;
 	}
+	if crate::design::avatar_radius(radius) == 0 {
+		let ring_rect = Rect::from_center_size(center, Vec2::splat((radius + ring_width) * 2.0));
+		let dot_rect = Rect::from_center_size(center, Vec2::splat(radius * 2.0));
+		painter.rect_filled(ring_rect, 0.0, ring);
+		painter.rect_filled(dot_rect, 0.0, color);
+		match status {
+			"idle" => {
+				let bite_rect = Rect::from_center_size(center - Vec2::splat(radius * 0.45), Vec2::splat(radius * 1.44));
+				painter.rect_filled(bite_rect, 0.0, ring);
+			}
+			"dnd" => {
+				painter.rect_filled(
+					Rect::from_center_size(center, vec2(radius * 1.25, radius * 0.5)),
+					0.0,
+					ring,
+				);
+			}
+			"online" => {}
+			_ => {
+				painter.rect_filled(Rect::from_center_size(center, Vec2::splat(radius)), 0.0, ring);
+			}
+		}
+		return;
+	}
 	painter.circle_filled(center, radius + ring_width, ring);
 	painter.circle_filled(center, radius, color);
 	match status {

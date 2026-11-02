@@ -205,6 +205,82 @@ impl Variant {
 }
 static VARIANT: AtomicU8 = AtomicU8::new(0);
 static PRIMARY_COLOR: AtomicU32 = AtomicU32::new(0);
+static CORNER_RADIUS: AtomicU8 = AtomicU8::new(255);
+static SQUARE_AVATARS: AtomicU8 = AtomicU8::new(255);
+static PIXEL_FONT: AtomicU8 = AtomicU8::new(255);
+
+pub fn corner_radius() -> Option<u8> {
+	let val = CORNER_RADIUS.load(Ordering::Relaxed);
+	if val == 255 { None } else { Some(val) }
+}
+
+pub fn set_corner_radius(radius: Option<u8>) {
+	CORNER_RADIUS.store(radius.unwrap_or(255), Ordering::Relaxed);
+}
+
+pub fn effective_widget_radius() -> u8 {
+	let override_r = CORNER_RADIUS.load(Ordering::Relaxed);
+	if override_r != 255 {
+		override_r
+	} else {
+		variant().default_radius().0
+	}
+}
+
+pub fn effective_window_radius() -> u8 {
+	let override_r = CORNER_RADIUS.load(Ordering::Relaxed);
+	if override_r != 255 {
+		override_r.saturating_add(2)
+	} else {
+		variant().default_radius().1
+	}
+}
+
+pub fn square_avatars() -> Option<bool> {
+	let val = SQUARE_AVATARS.load(Ordering::Relaxed);
+	if val == 255 { None } else { Some(val == 1) }
+}
+
+pub fn set_square_avatars(square: Option<bool>) {
+	let val = match square {
+		Some(true) => 1,
+		Some(false) => 0,
+		None => 255,
+	};
+	SQUARE_AVATARS.store(val, Ordering::Relaxed);
+}
+
+pub fn avatar_radius(size: f32) -> u8 {
+	let mode = SQUARE_AVATARS.load(Ordering::Relaxed);
+	let is_square = if mode == 255 {
+		effective_widget_radius() == 0 || variant() == Variant::Pixeled
+	} else {
+		mode == 1
+	};
+	if is_square {
+		0
+	} else {
+		(size * 0.5) as u8
+	}
+}
+
+pub fn is_pixel_font() -> bool {
+	let mode = PIXEL_FONT.load(Ordering::Relaxed);
+	if mode == 255 {
+		variant() == Variant::Pixeled
+	} else {
+		mode == 1
+	}
+}
+
+pub fn set_pixel_font(pixel_font: Option<bool>) {
+	let val = match pixel_font {
+		Some(true) => 1,
+		Some(false) => 0,
+		None => 255,
+	};
+	PIXEL_FONT.store(val, Ordering::Relaxed);
+}
 
 pub fn primary_color() -> Option<[u8; 3]> {
 	let value = PRIMARY_COLOR.load(Ordering::Relaxed);
@@ -1234,6 +1310,24 @@ pub fn apply(ctx: &egui::Context) {
 			egui::TextStyle::Monospace,
 			FontId::monospace(f32::from(metrics.monospace_size.unwrap_or(14))),
 		);
+		if is_pixel_font() {
+			style.text_styles.insert(
+				egui::TextStyle::Heading,
+				FontId::monospace(f32::from(metrics.heading_size.unwrap_or(20))),
+			);
+			style.text_styles.insert(
+				egui::TextStyle::Body,
+				FontId::monospace(f32::from(metrics.body_size.unwrap_or(15))),
+			);
+			style.text_styles.insert(
+				egui::TextStyle::Button,
+				FontId::monospace(f32::from(metrics.button_size.unwrap_or(14))),
+			);
+			style.text_styles.insert(
+				egui::TextStyle::Small,
+				FontId::monospace(f32::from(metrics.small_size.unwrap_or(12))),
+			);
+		}
 		style.spacing.item_spacing =
 			egui::vec2(f32::from(item_spacing[0]), f32::from(item_spacing[1]));
 		style.spacing.button_padding =
@@ -1250,7 +1344,8 @@ pub fn apply(ctx: &egui::Context) {
 		};
 		style.visuals.interact_cursor = Some(egui::CursorIcon::PointingHand);
 		style.visuals.window_fill = p.raised.to_opaque();
-		let (def_widget_radius, def_window_radius) = variant.default_radius();
+		let def_widget_radius = effective_widget_radius();
+		let def_window_radius = effective_window_radius();
 		style.visuals.window_corner_radius = metrics.window_radius.unwrap_or(def_window_radius).into();
 		style.visuals.menu_corner_radius = metrics.menu_radius.unwrap_or(def_window_radius).into();
 		style.visuals.window_stroke = Stroke::new(1.0, p.border);
@@ -1678,13 +1773,26 @@ pub(crate) fn paint_avatar(ui: &egui::Ui, name: &str, size: f32, rect: egui::Rec
 		.flat_map(char::to_uppercase)
 		.take(2)
 		.collect();
-	ui.painter()
-		.circle_filled(rect.center(), size * 0.5, fallback_avatar_color(name));
+	let r = avatar_radius(size);
+	if r == 0 {
+		ui.painter()
+			.rect_filled(rect, 0.0, fallback_avatar_color(name));
+	} else {
+		ui.painter()
+			.circle_filled(rect.center(), size * 0.5, fallback_avatar_color(name));
+	}
 	ui.painter().text(
 		rect.center(),
 		egui::Align2::CENTER_CENTER,
 		initials,
-		FontId::new(size * 0.36, semibold_family(ui.ctx())),
+		FontId::new(
+			size * 0.36,
+			if is_pixel_font() {
+				egui::FontFamily::Monospace
+			} else {
+				semibold_family(ui.ctx())
+			},
+		),
 		Color32::WHITE,
 	);
 }
@@ -1972,6 +2080,45 @@ mod tests {
 				}
 			}
 		}
+	}
+
+	#[test]
+	fn pixel_mode_and_theme_customization() {
+		set_variant(Variant::Pixeled);
+		assert_eq!(variant(), Variant::Pixeled);
+		assert_eq!(effective_widget_radius(), 0);
+		assert_eq!(effective_window_radius(), 0);
+		assert_eq!(avatar_radius(40.0), 0);
+		assert!(is_pixel_font());
+
+		set_variant(Variant::Standard);
+		assert_eq!(variant(), Variant::Standard);
+		assert_eq!(effective_widget_radius(), 6);
+		assert_eq!(avatar_radius(40.0), 20);
+		assert!(!is_pixel_font());
+
+		// Override with custom corner radius and square avatars
+		set_corner_radius(Some(0));
+		assert_eq!(effective_widget_radius(), 0);
+		assert_eq!(avatar_radius(40.0), 0);
+
+		set_corner_radius(Some(12));
+		assert_eq!(effective_widget_radius(), 12);
+		assert_eq!(avatar_radius(40.0), 20);
+
+		set_square_avatars(Some(true));
+		assert_eq!(avatar_radius(40.0), 0);
+
+		set_square_avatars(Some(false));
+		assert_eq!(avatar_radius(40.0), 20);
+
+		set_pixel_font(Some(true));
+		assert!(is_pixel_font());
+
+		// Clean up
+		set_corner_radius(None);
+		set_square_avatars(None);
+		set_pixel_font(None);
 	}
 }
 

@@ -543,6 +543,8 @@ pub struct MessagingUi {
 	reaction_picker: emoji_picker::Picker,
 	/// Set when the user picks a theme preset; the host persists it.
 	pub theme_variant_changed: Option<design::Variant>,
+	/// Set when the user changes corner radius, square avatars, or pixel font in the UI.
+	pub theme_customization_changed: bool,
 	pub primary_color: Option<[u8; 3]>,
 	pub transparency_blur: bool,
 	pub transparency: u8,
