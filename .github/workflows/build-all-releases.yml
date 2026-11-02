@@ -39,38 +39,26 @@ jobs:
           path: rustcord-windows-x86_64.zip
 
   build-macos:
-    name: Build macOS (${{ matrix.arch }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            arch: arm64
-            target: aarch64-apple-darwin
-          - os: macos-13
-            arch: x86_64
-            target: x86_64-apple-darwin
-    runs-on: ${{ matrix.os }}
+    name: Build macOS (arm64)
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.98.1
-        with:
-          targets: ${{ matrix.target }}
       - name: Build release binary
-        run: cargo build --release --locked -p serein --bin rustcord --target ${{ matrix.target }}
+        run: cargo build --release --locked -p serein --bin rustcord
       - name: Create macOS App Bundle
         run: |
           mkdir -p "Rustcord.app/Contents/MacOS"
           mkdir -p "Rustcord.app/Contents/Resources"
-          cp "target/${{ matrix.target }}/release/rustcord" "Rustcord.app/Contents/MacOS/"
+          cp "target/release/rustcord" "Rustcord.app/Contents/MacOS/"
           cp packaging/macos/Info.plist "Rustcord.app/Contents/"
           cp README.md LICENSE-MIT Rustcord.app/Contents/Resources/
-          ditto -c -k --sequesterRsrc Rustcord.app "rustcord-macos-${{ matrix.arch }}.zip"
+          ditto -c -k --sequesterRsrc Rustcord.app "rustcord-macos-arm64.zip"
       - name: Upload macOS Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rustcord-macos-${{ matrix.arch }}
-          path: rustcord-macos-${{ matrix.arch }}.zip
+          name: rustcord-macos-arm64
+          path: rustcord-macos-arm64.zip
 
   build-linux:
     name: Build Linux (x86_64)
@@ -124,6 +112,5 @@ jobs:
           #### Downloads
           - **Windows (x86_64)**: \`rustcord-windows-x86_64.zip\`
           - **macOS (Apple Silicon arm64)**: \`rustcord-macos-arm64.zip\`
-          - **macOS (Intel x86_64)**: \`rustcord-macos-x86_64.zip\`
           - **Linux (x86_64)**: \`rustcord-linux-x86_64.tar.gz\`
           "
