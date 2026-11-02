@@ -51,7 +51,9 @@ mod reading_settings;
 mod registered_games;
 #[cfg(feature = "demo")]
 mod rendering_demo;
+#[allow(dead_code)]
 mod resources;
+mod theme_manager;
 mod screen;
 #[cfg(feature = "demo")]
 mod server_settings_demo;
@@ -80,6 +82,10 @@ use zeroize::Zeroizing;
 /// Run explicit offline checks before native startup, or launch the configured desktop client.
 fn main() -> eframe::Result {
 	platform::memory::tune_allocator();
+	let cli_args: Vec<String> = std::env::args().collect();
+	if let Some(code) = theme_manager::handle_cli(&cli_args) {
+		std::process::exit(code);
+	}
 	#[cfg(all(debug_assertions, feature = "demo"))]
 	if std::env::args().any(|arg| arg == "--demo")
 		&& std::env::args().any(|arg| arg == "--demo-check-pr565")
@@ -1497,6 +1503,32 @@ impl Desktop {
 			{
 				ui::design::set_variant(variant);
 			}
+		}
+		// Load active theme configuration (custom file, ~/.config/rustcord/theme.json, or CLI flags)
+		let cli_theme_file = std::env::args()
+			.position(|arg| arg == "--theme-file")
+			.and_then(|idx| std::env::args().nth(idx + 1))
+			.map(std::path::PathBuf::from);
+		let cli_theme = std::env::args()
+			.position(|arg| arg == "--theme")
+			.and_then(|idx| std::env::args().nth(idx + 1));
+		let cli_accent = std::env::args()
+			.position(|arg| arg == "--accent")
+			.and_then(|idx| std::env::args().nth(idx + 1));
+
+		let mut active_theme = theme_manager::load_active_theme(cli_theme_file.as_deref());
+		if let Some(theme_arg) = cli_theme {
+			let mut t = active_theme.unwrap_or_default();
+			t.preset = Some(theme_arg);
+			active_theme = Some(t);
+		}
+		if let Some(accent_arg) = cli_accent {
+			let mut t = active_theme.unwrap_or_default();
+			t.accent = Some(accent_arg);
+			active_theme = Some(t);
+		}
+		if let Some(theme) = &active_theme {
+			theme_manager::apply_theme(theme);
 		}
 		ui::design::apply(&cc.egui_ctx);
 		cc.egui_ctx.set_theme(
@@ -5180,6 +5212,10 @@ impl Desktop {
 			ui::design::set_primary_color(self.messaging.primary_color);
 			ui::design::apply(ctx);
 			ctx.request_repaint();
+			let config_path = theme_manager::default_config_path();
+			let mut theme = theme_manager::load_from_file(&config_path).unwrap_or_default();
+			theme.accent = self.messaging.primary_color.map(theme_manager::format_hex);
+			let _ = theme_manager::save_to_file(&theme, &config_path);
 		}
 		let effects = (
 			self.transparency_available,
@@ -6517,6 +6553,12 @@ impl eframe::App for Desktop {
 			self.variant_changed = true;
 			let key = (variant != ui::design::Variant::Standard).then(|| variant.key().to_owned());
 			self.queue_cache_for(model::Id(0), cache::Operation::SaveThemeVariant(key));
+			let config_path = theme_manager::default_config_path();
+			let mut theme = theme_manager::load_from_file(&config_path).unwrap_or_default();
+			theme.preset = Some(variant.key().to_string());
+			let (widget_r, _) = variant.default_radius();
+			theme.radius = Some(widget_r);
+			let _ = theme_manager::save_to_file(&theme, &config_path);
 		}
 		let switch = self.messaging.switch_account_requested.take();
 		let add = std::mem::take(&mut self.messaging.add_account_requested);
@@ -6661,7 +6703,6 @@ impl eframe::App for Desktop {
 				voice: quest_voice,
 			},
 		);
-		resources::show(&ctx);
 		self.frame_metrics.reflows = self.messaging.timeline_reflows();
 		self.frame_metrics.finish();
 	}

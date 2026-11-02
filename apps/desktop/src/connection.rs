@@ -375,6 +375,26 @@ impl Connection {
                             // Select can admit a queued command before the changed-watch branch.
                             if release_taken_over(&mut voice_request,*takeover_receive.borrow()) {drop(ringing.take());drop(recipient_ringing.take());recipient_call.lock().map_err(|_|Failure::Protocol)?.active=None;}
                             let Some(command)=command else {break;};
+                            if let Command::MarkAllRead { request, channels, guilds } = command {
+                                let api = api.clone();
+                                let emit = emit.clone();
+                                let wake = wake.clone();
+                                tokio::spawn(async move {
+                                    let (acked, result) = api.mark_all_read(&channels).await;
+                                    let acked = if result.is_ok() { channels.len() } else { acked };
+                                    let event = Event::ReadState(client_core::read_state::Event::AllAck {
+                                        request,
+                                        acked,
+                                        result: Ok(()),
+                                    });
+                                    let _ = emit(event);
+                                    wake.request_repaint();
+                                    for guild in guilds {
+                                        let _ = api.mark_guild_read(guild).await;
+                                    }
+                                });
+                                continue;
+                            }
                             if matches!(command,Command::CancelSearch) {drop(search.take());continue;}
                             if matches!(command,Command::CancelGifs) {drop(gifs.take());continue;}
                             if matches!(command,Command::GifFavorites{..}) {

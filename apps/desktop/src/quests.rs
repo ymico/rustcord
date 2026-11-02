@@ -129,10 +129,17 @@ impl Quests {
 			ctx.request_repaint_after(Duration::from_millis(100));
 		}
 		egui::Area::new(egui::Id::unique("rustcord-quests-button"))
-			.anchor(egui::Align2::RIGHT_BOTTOM, [-12.0, -36.0])
+			.anchor(egui::Align2::RIGHT_TOP, [-16.0, 10.0])
 			.order(egui::Order::Foreground)
+			.movable(true)
 			.show(ctx, |ui| {
-				if ui.button("Quests").clicked() {
+				let running = self.job.is_some();
+				let button_text = if running {
+					egui::RichText::new("⚡ Quests (Active)").color(egui::Color32::from_rgb(0x23, 0xa5, 0x5a)).size(12.0).strong()
+				} else {
+					egui::RichText::new("🎯 Quests").size(12.0).strong()
+				};
+				if ui.button(button_text).on_hover_text("Open Discord Quests runner (drag to move)").clicked() {
 					self.open = !self.open;
 				}
 			});

@@ -66,7 +66,8 @@ enum Pending {
 	All {
 		request: u64,
 		/// In request order; a forgotten channel leaves `None` so `acked` still lines up.
-		channels: Vec<Option<(Id, u64, Id)>>,
+		/// (channel, previous_read_message, previous_epoch, target_latest_message)
+		channels: Vec<Option<(Id, Option<Id>, u64, Id)>>,
 		scope: Scope,
 		/// More unread channels remained past `MAX_BULK_ACK`.
 		more: bool,
@@ -138,7 +139,10 @@ impl ReadState {
 	/// Drops pending work; an interrupted bulk acknowledgement resumes once reads can start again.
 	pub fn cancel(&mut self) {
 		self.activity.clear_notifications();
-		if let Some(Pending::All { scope, .. }) = self.pending.take() {
+		if let Some(Pending::All { channels, scope, .. }) = self.pending.take() {
+			for slot in channels.into_iter().flatten() {
+				self.entries.insert(slot.0, (slot.1, slot.2));
+			}
 			self.continue_all = Some(scope);
 		}
 		self.status = None;
@@ -631,9 +635,24 @@ impl State {
 			.iter()
 			.map(|(channel, _, message)| (*channel, *message))
 			.collect();
+		let mut pending_channels = Vec::with_capacity(channels.len());
+		for &(channel, epoch, message) in &channels {
+			let prev_read = self
+				.read_state
+				.entries
+				.get(&channel)
+				.and_then(|(r, _)| *r);
+			pending_channels.push(Some((channel, prev_read, epoch, message)));
+			self.read_state
+				.activity
+				.ack(channel, Some(message), None);
+			self.read_state
+				.entries
+				.insert(channel, (Some(message), epoch.wrapping_add(1)));
+		}
 		self.read_state.pending = Some(Pending::All {
 			request,
-			channels: channels.into_iter().map(Some).collect(),
+			channels: pending_channels,
 			scope,
 			more,
 		});
@@ -959,11 +978,24 @@ impl State {
 					return Ok(());
 				};
 				let failed = channels.split_off(acked.min(channels.len()));
-				self.finish_bulk_ack(channels.into_iter().flatten().collect(), Ok(()));
+				let confirmed: Vec<_> = channels
+					.into_iter()
+					.flatten()
+					.map(|(c, _, epoch, msg)| (c, epoch, msg))
+					.collect();
+				self.finish_bulk_ack(confirmed, Ok(()));
 				match result {
 					Ok(()) => self.read_state.continue_all = more.then_some(scope),
 					Err(failure) => {
-						self.finish_bulk_ack(failed.into_iter().flatten().collect(), Err(failure))
+						let failed_channels: Vec<_> = failed
+							.into_iter()
+							.flatten()
+							.map(|(c, prev_read, prev_epoch, msg)| {
+								self.read_state.entries.insert(c, (prev_read, prev_epoch));
+								(c, prev_epoch, msg)
+							})
+							.collect();
+						self.finish_bulk_ack(failed_channels, Err(failure));
 					}
 				}
 			}

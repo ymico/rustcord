@@ -80,7 +80,7 @@ pub fn rail_name(response: &egui::Response, name: impl AsRef<str>) {
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[repr(u8)]
 pub enum Variant {
-	/// The house palette: neutral grey surfaces, following the light/dark preference.
+	/// The default Discord dark palette: neutral dark surfaces.
 	#[default]
 	Standard = 0,
 	/// Deep black surfaces for OLED displays.
@@ -91,11 +91,29 @@ pub enum Variant {
 	Ember = 4,
 	Verdant = 5,
 	Afterglow = 6,
+	/// Retro cyberpunk matrix theme with 0px sharp geometry.
+	Pixeled = 7,
+	/// Sleek modern rounded dark theme.
+	Smooth = 8,
+	/// Arctic frost blue palette.
+	Nord = 9,
+	/// Vampire dark theme with purple and pink.
+	Dracula = 10,
+	/// Warm pastel mocha palette.
+	Catppuccin = 11,
+	/// Classic solarized cyan palette.
+	Solarized = 12,
 }
 impl Variant {
-	pub const ALL: [Variant; 7] = [
+	pub const ALL: [Variant; 13] = [
 		Variant::Standard,
+		Variant::Smooth,
+		Variant::Pixeled,
 		Variant::Eclipse,
+		Variant::Nord,
+		Variant::Dracula,
+		Variant::Catppuccin,
+		Variant::Solarized,
 		Variant::Slate,
 		Variant::Nightfall,
 		Variant::Ember,
@@ -104,8 +122,14 @@ impl Variant {
 	];
 	pub fn label(self) -> &'static str {
 		match self {
-			Variant::Standard => "Rustcord",
-			Variant::Eclipse => "Eclipse",
+			Variant::Standard => "Default",
+			Variant::Smooth => "Smooth",
+			Variant::Pixeled => "Pixeled",
+			Variant::Eclipse => "OLED",
+			Variant::Nord => "Nord",
+			Variant::Dracula => "Dracula",
+			Variant::Catppuccin => "Catppuccin",
+			Variant::Solarized => "Solarized",
 			Variant::Slate => "Slate",
 			Variant::Nightfall => "Nightfall",
 			Variant::Ember => "Ember",
@@ -116,8 +140,14 @@ impl Variant {
 	/// Stable identifier for persistence.
 	pub fn key(self) -> &'static str {
 		match self {
-			Variant::Standard => "standard",
-			Variant::Eclipse => "eclipse",
+			Variant::Standard => "default",
+			Variant::Smooth => "smooth",
+			Variant::Pixeled => "pixeled",
+			Variant::Eclipse => "oled",
+			Variant::Nord => "nord",
+			Variant::Dracula => "dracula",
+			Variant::Catppuccin => "catppuccin",
+			Variant::Solarized => "solarized",
 			Variant::Slate => "slate",
 			Variant::Nightfall => "nightfall",
 			Variant::Ember => "ember",
@@ -129,18 +159,35 @@ impl Variant {
 	fn legacy_key(self) -> &'static str {
 		match self {
 			Variant::Standard => "standard",
-			Variant::Eclipse => "onyx",
+			Variant::Eclipse => "eclipse",
 			Variant::Slate => "ash",
 			Variant::Nightfall => "midnight-blurple",
 			Variant::Ember => "crimson-moon",
 			Variant::Verdant => "forest",
 			Variant::Afterglow => "sunset",
+			Variant::Smooth => "smooth",
+			Variant::Pixeled => "pixeled",
+			Variant::Nord => "nord",
+			Variant::Dracula => "dracula",
+			Variant::Catppuccin => "catppuccin",
+			Variant::Solarized => "solarized",
 		}
 	}
 	pub fn from_key(key: &str) -> Option<Variant> {
+		let lower = key.to_ascii_lowercase();
 		Variant::ALL
 			.into_iter()
-			.find(|v| v.key() == key || v.legacy_key() == key)
+			.find(|v| v.key() == lower || v.legacy_key() == lower || v.label().to_ascii_lowercase() == lower || (lower == "rustcord" && *v == Variant::Standard))
+	}
+	/// Default widget and window corner radius (widget_radius, window_radius) in logical pixels.
+	pub fn default_radius(self) -> (u8, u8) {
+		match self {
+			Variant::Pixeled => (0, 0),
+			Variant::Smooth => (12, 14),
+			Variant::Catppuccin => (10, 12),
+			Variant::Nord | Variant::Dracula | Variant::Eclipse => (8, 10),
+			_ => (6, 10),
+		}
 	}
 	/// Gradient variants ignore the light/dark preference and always use dark text.
 	pub fn is_gradient(self) -> bool {
@@ -381,6 +428,60 @@ pub fn builtin_colors(dark: bool, variant: Variant) -> Palette {
 			rgb(0x313747),
 			rgb(0x3d4456),
 			rgb(0x3a4152),
+		),
+		Variant::Smooth => dark_common(
+			rgb(0x13141c),
+			rgb(0x181924),
+			rgb(0x1e202e),
+			rgb(0x24283b),
+			rgb(0x2a2f46),
+			rgb(0x343b58),
+			rgb(0x2a2f46),
+		),
+		Variant::Pixeled => dark_common(
+			rgb(0x08080a),
+			rgb(0x0d0e13),
+			rgb(0x121319),
+			rgb(0x181a22),
+			rgb(0x20232e),
+			rgb(0x2a2e3d),
+			rgb(0x252834),
+		),
+		Variant::Nord => dark_common(
+			rgb(0x1a1e27),
+			rgb(0x202430),
+			rgb(0x242935),
+			rgb(0x2c3242),
+			rgb(0x333a4d),
+			rgb(0x3b4358),
+			rgb(0x333a4c),
+		),
+		Variant::Dracula => dark_common(
+			rgb(0x181920),
+			rgb(0x1e1f29),
+			rgb(0x21222c),
+			rgb(0x282a36),
+			rgb(0x343746),
+			rgb(0x44475a),
+			rgb(0x383a48),
+		),
+		Variant::Catppuccin => dark_common(
+			rgb(0x11111b),
+			rgb(0x181825),
+			rgb(0x1e1e2e),
+			rgb(0x242638),
+			rgb(0x313244),
+			rgb(0x45475a),
+			rgb(0x313244),
+		),
+		Variant::Solarized => dark_common(
+			rgb(0x00141a),
+			rgb(0x001b22),
+			rgb(0x00212b),
+			rgb(0x073642),
+			rgb(0x0a404e),
+			rgb(0x0e4c5c),
+			rgb(0x073642),
 		),
 		Variant::Nightfall => gradient([0x35519f, 0x1b1440], 0x2f3451),
 		Variant::Ember => gradient([0x8c2340, 0x140609], 0x41262e),
@@ -1149,8 +1250,9 @@ pub fn apply(ctx: &egui::Context) {
 		};
 		style.visuals.interact_cursor = Some(egui::CursorIcon::PointingHand);
 		style.visuals.window_fill = p.raised.to_opaque();
-		style.visuals.window_corner_radius = metrics.window_radius.unwrap_or(12).into();
-		style.visuals.menu_corner_radius = metrics.menu_radius.unwrap_or(12).into();
+		let (def_widget_radius, def_window_radius) = variant.default_radius();
+		style.visuals.window_corner_radius = metrics.window_radius.unwrap_or(def_window_radius).into();
+		style.visuals.menu_corner_radius = metrics.menu_radius.unwrap_or(def_window_radius).into();
 		style.visuals.window_stroke = Stroke::new(1.0, p.border);
 		style.visuals.window_shadow = egui::epaint::Shadow {
 			offset: [0, 8],
@@ -1182,7 +1284,7 @@ pub fn apply(ctx: &egui::Context) {
 			&mut style.visuals.widgets.active,
 			&mut style.visuals.widgets.open,
 		] {
-			widget.corner_radius = metrics.widget_radius.unwrap_or(8).into();
+			widget.corner_radius = metrics.widget_radius.unwrap_or(def_widget_radius).into();
 			widget.fg_stroke = Stroke::new(1.0, p.text);
 			widget.bg_stroke = Stroke::NONE;
 			widget.expansion = 0.0;

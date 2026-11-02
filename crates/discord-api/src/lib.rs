@@ -1129,10 +1129,10 @@ impl DiscordApi {
 				})
 			}
 			Command::MarkAllRead { request, channels, guilds } => {
+				let (acked, result) = self.mark_all_read(&channels).await;
 				for &guild in &guilds {
 					let _ = self.mark_guild_read(guild).await;
 				}
-				let (acked, result) = self.mark_all_read(&channels).await;
 				Event::ReadState(client_core::read_state::Event::AllAck {
 					request,
 					acked,
@@ -1664,20 +1664,17 @@ impl DiscordApi {
 		*token = next;
 		Ok(())
 	}
-	async fn mark_guild_read(&self, guild: model::Id) -> Result<(), Failure> {
+	pub async fn mark_guild_read(&self, guild: model::Id) -> Result<(), Failure> {
 		self.request_limited(Method::POST, &format!("/guilds/{guild}/ack"), None, 4096)
 			.await
 			.map(|_| ())
 	}
 	/// Unofficial normal-user bulk acknowledgement in 100-channel requests (unverified limit).
 	/// Returns how many leading channels were confirmed, even when a later request fails.
-	async fn mark_all_read(
+	pub async fn mark_all_read(
 		&self,
 		channels: &[(model::Id, model::Id)],
 	) -> (usize, Result<(), Failure>) {
-		if channels.len() > client_core::MAX_BULK_ACK {
-			return (0, Err(Failure::Protocol));
-		}
 		let mut acked = 0;
 		for chunk in channels.chunks(100) {
 			let read_states = chunk
@@ -1699,7 +1696,12 @@ impl DiscordApi {
 				)
 				.await
 			{
-				return (acked, Err(failure));
+				// If a chunk gets rate limited, still count successful ones and continue
+				if failure == Failure::RateLimited {
+					tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+				} else {
+					return (acked, Err(failure));
+				}
 			}
 			acked += chunk.len();
 		}

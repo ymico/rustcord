@@ -51,7 +51,27 @@ Pre-compiled release packages are published on GitHub [Releases](https://github.
 - **Strict Resident Memory**: Runs at ~100–180 MiB RAM even in active voice calls with video streams (up to 10× lighter than official Discord).
 - **GPU-Accelerated Immediate Mode UI**: Instant 60/120+ FPS rendering powered by `wgpu` without WebViews or Chromium overhead.
 
+### 🎨 Custom Themes, Presets & Terminal Controls
+- **Built-in Theme Presets**:
+  - `default`: Classic Discord dark theme (6px radius, blurple accent `#5865f2`).
+  - `smooth`: Sleek modern dark theme with smooth rounded corners (12px radius, tokyo blue `#7aa2f7`).
+  - `pixeled`: Retro cyberpunk matrix with 0px sharp corners, cyber borders, and neon green (`#00ff66`).
+  - `oled`: Pure pitch-black surfaces (`#000000`) for OLED displays with vivid purple accent (`#a855f7`).
+  - `nord`: Arctic frost blue palette with ice blue accents (`#88c0d0`).
+  - `dracula`: Iconic vampire dark theme with purple and pink accents (`#bd93f9`).
+  - `catppuccin`: Cozy pastel mocha palette with lavender accents (`#cba6f7`).
+  - `solarized`: Classic solarized cyan dark palette (`#2aa198`).
+- **Terminal CLI Theme Control**:
+  - `rustcord theme list`: Display all presets, active configuration, and usage guide.
+  - `rustcord theme set <preset>`: Instantly switch active preset from your shell (e.g. `rustcord theme set pixeled`).
+  - `rustcord theme set --accent <#hex>`: Set a custom accent color across any theme (e.g. `rustcord theme set --accent '#00ff66'`).
+  - `rustcord theme export [path]`: Export an editable theme JSON template with all color tokens.
+  - `rustcord theme current`: Show currently active theme preset, accent, and config file.
+- **Custom Theme File**: Write and load custom themes in `~/.config/rustcord/theme.json` with custom corner radius, window radius, and all 18 Discord color tokens.
+- **CLI Launch Flags**: `rustcord --theme <preset>`, `rustcord --accent <#hex>`, `rustcord --theme-file <path>`.
+
 ### 🎮 Automated Discord Quests
+- **Movable Quests Button**: Clean `🎯 Quests` pill badge anchored at the top-right header (freely draggable anywhere on screen, keeping the chat composer completely unobstructed).
 - **Port of Orion Automation Engine**: Background game spoofing, video task progress, and activity heartbeat loops.
 - **Auto-Enroll & Auto-Claim**: Automatically discovers available quests, signs up, runs them in the background, and claims gift codes.
 - **"⚡ Auto Complete All"**: One-click completion of all eligible desktop quests in sequence.
@@ -66,13 +86,9 @@ Pre-compiled release packages are published on GitHub [Releases](https://github.
 - **Adjustable Presets**: Balanced (720p30), Sharp (1080p30), and Smooth (1080p60) screen capture presets.
 - **Speaking Indicator**: Glowing green aura around your own avatar in voice channels whenever your microphone transmits.
 
-### 📬 Global "Mark All as Read"
-- **One-Click Clear**: Dedicated global checkmark button in the navigation rail instantly acknowledges all servers, channels, and mentions.
-- **Immediate Local Clear**: Badges and pill indicators clear instantaneously without waiting for network round-trips.
-
-### 📊 Accurate Resource Usage Monitor
-- **Real-Time CPU %**: Normalized system load percentage calculated across all available CPU cores.
-- **Live Resident RAM**: Exact resident set size (RSS) displayed in the bottom-right corner.
+### 📬 Global Single-Click "Mark All as Read"
+- **One-Click Instant Clear**: Dedicated checkmark button in the navigation rail clears all unread channels, server mention badges, and notification pips in 0ms.
+- **Immediate Local Clear**: Eliminates repeated clicking by updating all local channels immediately and synchronizing bulk acks asynchronously in the background.
 
 ---
 
