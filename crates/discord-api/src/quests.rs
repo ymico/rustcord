@@ -148,46 +148,41 @@ fn parse_list(bytes: &[u8]) -> Result<Vec<Quest>, Failure> {
 		let config = &item["config"];
 		let current = field(config, "task_config_v2", "taskConfigV2");
 		let legacy = field(config, "task_config", "taskConfig");
-		let tasks = current
+		let tasks_map = current
 			.get("tasks")
 			.and_then(Value::as_object)
 			.filter(|t| !t.is_empty())
 			.or_else(|| legacy.get("tasks").and_then(Value::as_object))
 			.ok_or(Failure::Protocol)?;
-		if tasks.is_empty() || tasks.len() > 16 {
+		if tasks_map.is_empty() || tasks_map.len() > 16 {
 			return Err(Failure::Capacity);
 		}
-		let selected = [
-			"WATCH_VIDEO",
-			"PLAY_ON_DESKTOP",
-			"PLAY_ON_DESKTOP_V2",
-			"STREAM_ON_DESKTOP",
-			"PLAY_ACTIVITY",
-			"ACHIEVEMENT_IN_ACTIVITY",
-		]
-		.into_iter()
-		.find_map(|key| tasks.get(key).map(|task| (key, task)))
-		.or_else(|| tasks.iter().next().map(|(key, task)| (key.as_str(), task)))
-		.ok_or(Failure::Protocol)?;
-		let key = selected.0;
+		let is_console = |k: &str| k.contains("XBOX") || k.contains("PLAYSTATION");
+		let task_keys: Vec<&str> = tasks_map.keys().map(|k| k.as_str()).collect();
+
+		let (key, mut task) = if let Some(&k) = task_keys.iter().find(|&&k| k == "ACHIEVEMENT_IN_ACTIVITY") {
+			(k, Task::Achievement)
+		} else if let Some(&k) = task_keys.iter().find(|&&k| k == "PLAY_ACTIVITY") {
+			(k, Task::Activity)
+		} else if let Some(&k) = task_keys.iter().find(|&&k| k == "WATCH_VIDEO" || (k.contains("VIDEO") && !is_console(k))) {
+			(k, Task::Video)
+		} else if let Some(&k) = task_keys.iter().find(|&&k| k == "PLAY_ON_DESKTOP" || k == "PLAY_ON_DESKTOP_V2" || (k.starts_with("PLAY") && !is_console(k))) {
+			(k, Task::PlayGame)
+		} else if let Some(&k) = task_keys.iter().find(|&&k| k == "STREAM_ON_DESKTOP" || (k.starts_with("STREAM") && !is_console(k))) {
+			(k, Task::StreamGame)
+		} else if let Some(&k) = task_keys.iter().find(|&&k| k.contains("ACTIVITY") && !is_console(k)) {
+			(k, Task::Activity)
+		} else if let Some(&k) = task_keys.iter().find(|&&k| !is_console(k)) {
+			(k, Task::PlayGame)
+		} else {
+			(task_keys[0], Task::Unsupported)
+		};
+
+		let task_val = &tasks_map[key];
 		if key.len() > 64 || !key.bytes().all(|b| b.is_ascii_uppercase() || b == b'_') {
 			return Err(Failure::Protocol);
 		}
-		let mut task = if key == "WATCH_VIDEO" || key.contains("VIDEO") {
-			Task::Video
-		} else if key == "PLAY_ACTIVITY" {
-			Task::Activity
-		} else if key == "ACHIEVEMENT_IN_ACTIVITY" {
-			Task::Achievement
-		} else if key.starts_with("STREAM") {
-			Task::StreamGame
-		} else if key.starts_with("PLAY") {
-			Task::PlayGame
-		} else {
-			Task::Unsupported
-		};
-		let target = selected
-			.1
+		let target = task_val
 			.get("target")
 			.and_then(Value::as_u64)
 			.and_then(|v| u32::try_from(v).ok())
@@ -196,19 +191,37 @@ fn parse_list(bytes: &[u8]) -> Result<Vec<Quest>, Failure> {
 		if target > MAX_RUN_SECONDS {
 			task = Task::Unsupported;
 		}
-		let application = config
-			.get("application")
-			.and_then(|v| v.get("id"))
-			.filter(|v| !v.is_null())
+		let application = task_val
+			.get("applications")
+			.and_then(Value::as_array)
+			.and_then(|arr| arr.first())
+			.and_then(|app| app.get("id"))
 			.map(identifier)
-			.transpose()?;
+			.transpose()?
+			.or_else(|| {
+				config
+					.get("application")
+					.and_then(|v| v.get("id"))
+					.filter(|v| !v.is_null())
+					.map(identifier)
+					.transpose()
+					.ok()
+					.flatten()
+			});
 		if (task.needs_voice() || task == Task::PlayGame) && application.is_none() {
 			task = Task::Unsupported;
 		}
 		let name = config
 			.get("messages")
 			.and_then(|v| v.get("quest_name").or_else(|| v.get("questName")))
-			.or_else(|| config.get("application").and_then(|v| v.get("name")));
+			.or_else(|| config.get("application").and_then(|v| v.get("name")))
+			.or_else(|| {
+				task_val
+					.get("applications")
+					.and_then(Value::as_array)
+					.and_then(|arr| arr.first())
+					.and_then(|app| app.get("name"))
+			});
 		let name = name
 			.map(|v| text(v, 256))
 			.transpose()?

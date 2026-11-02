@@ -567,7 +567,15 @@ impl State {
 		self.channels
 			.iter()
 			.filter(move |channel| {
-				scope.covers(channel.guild) && self.unread(channel.id) == Some(true)
+				scope.covers(channel.guild)
+					&& (self.unread(channel.id) == Some(true)
+						|| self.unread_count(channel.id) > 0
+						|| channel.last_message.is_some_and(|latest| {
+							self.read_state
+								.entries
+								.get(&channel.id)
+								.map_or(true, |(read, _)| read.is_none_or(|r| latest > r))
+						}))
 			})
 			.filter_map(|channel| {
 				let message = channel.last_message?;
@@ -583,7 +591,8 @@ impl State {
 		self.auth == AuthState::Authenticated
 			&& self.gateway_connected
 			&& self.read_state.pending.is_none()
-			&& self.unread_acks(scope).next().is_some()
+			&& (self.unread_acks(scope).next().is_some()
+				|| matches!(scope, Scope::All if !self.guilds.is_empty()))
 	}
 	pub fn can_mark_all_read(&self) -> bool {
 		self.can_bulk_ack(&Scope::All)
@@ -604,6 +613,10 @@ impl State {
 		if !self.can_bulk_ack(&scope) {
 			return None;
 		}
+		let guilds = match &scope {
+			Scope::All => self.guilds.iter().map(|g| g.id).collect(),
+			Scope::Guilds(g) => g.to_vec(),
+		};
 		let (channels, more) = {
 			let mut unread = self.unread_acks(&scope);
 			let channels = unread
@@ -626,9 +639,11 @@ impl State {
 		});
 		self.read_state.continue_all = None;
 		self.read_state.status = None;
+		self.read_state.activity.clear_notifications();
 		Some(crate::Command::MarkAllRead {
 			request,
 			channels: acks,
+			guilds,
 		})
 	}
 	/// Next batch after a capped bulk acknowledgement succeeded or a reconnect interrupted one.
@@ -1238,7 +1253,7 @@ mod navigation_tests {
 				partial: false,
 			})
 			.unwrap();
-		let Some(Command::MarkAllRead { request, channels }) = state.prepare_mark_all_read() else {
+		let Some(Command::MarkAllRead { request, channels, .. }) = state.prepare_mark_all_read() else {
 			panic!("mark all read");
 		};
 		assert_eq!(channels, vec![(Id(1), Id(500)), (Id(2), Id(500))]);
@@ -1254,7 +1269,7 @@ mod navigation_tests {
 		assert_eq!(state.unread(Id(2)), Some(true));
 		assert!(state.read_state.status(Id(2)).is_some());
 		assert!(state.continue_mark_all_read().is_none());
-		let Some(Command::MarkAllRead { request, channels }) = state.prepare_mark_all_read() else {
+		let Some(Command::MarkAllRead { request, channels, .. }) = state.prepare_mark_all_read() else {
 			panic!("retry");
 		};
 		assert_eq!(channels, vec![(Id(2), Id(500))]);
@@ -1288,7 +1303,7 @@ mod navigation_tests {
 	#[test]
 	fn mark_all_read_keeps_ack_positions_when_a_pending_channel_is_forgotten() {
 		let mut state = with_unread_dms(3);
-		let Some(Command::MarkAllRead { request, channels }) = state.prepare_mark_all_read() else {
+		let Some(Command::MarkAllRead { request, channels, .. }) = state.prepare_mark_all_read() else {
 			panic!("mark all read");
 		};
 		assert_eq!(channels.len(), 3);
@@ -1311,7 +1326,7 @@ mod navigation_tests {
 	fn mark_all_read_continuation_waits_for_another_pending_read() {
 		let count = crate::MAX_BULK_ACK as u64 + 2;
 		let mut state = with_unread_dms(count);
-		let Some(Command::MarkAllRead { request, channels }) = state.prepare_mark_all_read() else {
+		let Some(Command::MarkAllRead { request, channels, .. }) = state.prepare_mark_all_read() else {
 			panic!("first batch");
 		};
 		assert_eq!(channels.len(), crate::MAX_BULK_ACK);

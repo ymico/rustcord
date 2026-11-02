@@ -3655,7 +3655,7 @@ impl Desktop {
 						result: Ok(()),
 					})
 				}
-				Command::MarkAllRead { request, channels } => {
+				Command::MarkAllRead { request, channels, .. } => {
 					Event::ReadState(client_core::read_state::Event::AllAck {
 						request,
 						acked: channels.len(),

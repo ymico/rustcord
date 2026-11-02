@@ -219,10 +219,11 @@ pub enum Command {
 		guild: Id,
 		request: u64,
 	},
-	/// Latest message per unread channel, at most `MAX_BULK_ACK`.
+	/// Latest message per unread channel, at most `MAX_BULK_ACK`, plus any scoped guilds to acknowledge.
 	MarkAllRead {
 		request: u64,
 		channels: Vec<(Id, Id)>,
+		guilds: Vec<Id>,
 	},
 	Reactions(reactions::Command),
 	Profile {

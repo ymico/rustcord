@@ -1197,7 +1197,7 @@ mod tests {
 		assert!(state.can_mark_guilds_read(&[Id(999), Id(11)]));
 		assert!(!state.can_mark_guilds_read(&[Id(999)]));
 
-		let Some(Command::MarkAllRead { request, channels }) =
+		let Some(Command::MarkAllRead { request, channels, .. }) =
 			state.prepare_mark_guilds_read(&[Id(10), Id(10), Id(999), Id(11)])
 		else {
 			panic!("folder should send one bulk acknowledgement");

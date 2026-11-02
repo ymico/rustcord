@@ -32,11 +32,16 @@ jobs:
           Copy-Item LICENSE-MIT dist-win/
           Copy-Item packaging/windows/install-notifications.ps1 dist-win/
           Compress-Archive -Path dist-win/* -DestinationPath rustcord-windows-x86_64.zip
-      - name: Upload Windows Artifact
+      - name: Upload Windows Zip Artifact
         uses: actions/upload-artifact@v4
         with:
           name: rustcord-windows-x86_64
           path: rustcord-windows-x86_64.zip
+      - name: Upload Windows exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustcord-exe
+          path: target/release/rustcord.exe
 
   build-macos:
     name: Build macOS (arm64)

@@ -145,10 +145,10 @@ impl Quests {
 		egui::Window::new("Discord Quests").id(egui::Id::unique("rustcord-quests"))
             .open(&mut open).default_width(620.0).default_height(480.0).resizable(true)
             .show(ctx,|ui| {
-                ui.label("Unofficial quest progress controls. No game/process spoofing, challenge bypass or automatic OAuth grants.");
-                ui.label("Video jobs report elapsed time; activity jobs require your current voice channel. Only Discord-confirmed completion counts.");
+                ui.label("Automated Discord Quest Runner: auto-spoofs game heartbeats and video progress to complete quests and claim rewards.");
+                ui.label("Runs in background: auto-enrolls, sends required activity/game heartbeats, and auto-claims Discord gift rewards.");
                 ui.horizontal_wrapped(|ui| {
-                    ui.checkbox(&mut self.auto_enroll,"Auto enroll when Start is clicked");
+                    ui.checkbox(&mut self.auto_enroll,"Auto enroll quests");
                     ui.checkbox(&mut self.auto_claim,"Auto claim confirmed rewards");
                 });
                 ui.horizontal(|ui| {
@@ -166,12 +166,12 @@ impl Quests {
                             ui.strong(&quest.name);
                             ui.label(format!("{} · {}",quest.task.label(),quest.key));
                             ui.label(format!("Server progress: {:.0} / {}",quest.status.value,quest.target));
-                            let label=if quest.status.claimed {"Claimed"} else if quest.status.completed {"Completed by Discord"} else if quest.status.enrolled {"Enrolled"} else {"Not enrolled"};
+                            let label=if quest.status.claimed {"Claimed"} else if quest.status.completed {"Completed"} else if quest.status.enrolled {"Enrolled"} else {"Not enrolled"};
                             ui.label(label);
                             if !quest.expires.is_empty() {ui.small(format!("Expires: {}",quest.expires));}
                             let active=self.job.is_some();
                             if quest.task==Task::Unsupported {
-                                ui.small("Complete this task in the official client/game. Rustcord will not invent progress or authorize apps.");
+                                ui.small("Console-only quest. Not supported on desktop.");
                             } else if quest.task.needs_voice() && session.voice.is_none() {
                                 ui.small("Join a voice channel before starting this activity task.");
                             }
@@ -299,11 +299,11 @@ async fn run(
 		Action::RunAll => {
 			let uncompleted: Vec<Id> = list
 				.iter()
-				.filter(|q| !q.status.completed && q.task != Task::Unsupported && (!q.task.needs_voice() || voice.is_some()))
+				.filter(|q| (!q.status.completed || !q.status.claimed) && q.task != Task::Unsupported && (!q.task.needs_voice() || voice.is_some()))
 				.map(|q| q.id)
 				.collect();
 			if uncompleted.is_empty() {
-				return Ok("All eligible quests are already completed or claimed.".into());
+				return Ok("All eligible quests are already completed and claimed.".into());
 			}
 			let total = uncompleted.len();
 			let all_flags = QuestFlags { auto_enroll: true, auto_claim: true };
@@ -360,9 +360,25 @@ async fn run_single_quest(
 	list: &mut Vec<Quest>,
 ) -> Result<String, String> {
 	let mut quest = find(list, id)?;
+	if quest.status.completed {
+		if flags.auto_claim && !quest.status.claimed {
+			api.claim_quest(&quest)
+				.await
+				.map_err(|e| format!("Reward claim failed: {}", e.label()))?;
+			*list = api.quests().await.map_err(|e| e.label().to_owned())?;
+			send_update(
+				send,
+				ctx,
+				list,
+				format!("Claimed reward for {}!", quest.name),
+			)
+			.await?;
+		}
+		return Ok(format!("Quest {} was already completed.", quest.name));
+	}
 	if quest.task == Task::Unsupported {
 		return Err(
-			"This task requires the official client or game; automation was not started.".into(),
+			"This task is console-only and not supported on desktop; skipping.".into(),
 		);
 	}
 	if quest.task.needs_voice() && voice.is_none() {
@@ -371,7 +387,7 @@ async fn run_single_quest(
 	if !quest.status.enrolled && !quest.status.completed {
 		if !flags.auto_enroll {
 			return Err(
-				"Enroll in the official client or enable Auto enroll, then click Start.".into(),
+				"Enrollment is required. Enable Auto enroll or enroll in Discord.".into(),
 			);
 		}
 		api.enroll_quest(&quest)
@@ -434,8 +450,8 @@ async fn run_single_quest(
 			),
 		)
 		.await?;
-		if stalled >= 5 {
-			return Err("Discord reported no new progress for five checks. Stopped; no completion was assumed.".into());
+		if stalled >= 10 {
+			return Err("Discord reported no new progress for 10 checks. Stopped; no completion was assumed.".into());
 		}
 	}
 	// Completion and claims are never inferred from a progress bar reaching its target.
