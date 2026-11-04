@@ -1057,6 +1057,8 @@ struct Desktop {
 	#[cfg(feature = "demo")]
 	demo_typing: bool,
 	variant_changed: bool,
+	theme_last_modified: Option<std::time::SystemTime>,
+	theme_last_check: std::time::Instant,
 	pending_save: Option<Arc<SessionSecret>>,
 	/// Written under the account's own entry on every READY, including a launch restore, so
 	/// the switcher can always get back to an account it lists.
@@ -2424,6 +2426,8 @@ impl Desktop {
 			#[cfg(feature = "demo")]
 			demo_typing,
 			variant_changed: false,
+			theme_last_modified: None,
+			theme_last_check: std::time::Instant::now(),
 			pending_save: None,
 			pending_account_save: None,
 			current_login: None,
@@ -2890,6 +2894,25 @@ impl Desktop {
 		};
 		if ctx.options(|options| options.fallback_theme) != theme {
 			ctx.options_mut(|options| options.fallback_theme = theme);
+		}
+	}
+	fn sync_custom_theme(&mut self, ctx: &egui::Context) {
+		if self.theme_last_check.elapsed() < std::time::Duration::from_millis(800) {
+			return;
+		}
+		self.theme_last_check = std::time::Instant::now();
+		let config_path = theme_manager::default_config_path();
+		if let Ok(metadata) = std::fs::metadata(&config_path) {
+			if let Ok(mtime) = metadata.modified() {
+				if self.theme_last_modified != Some(mtime) {
+					self.theme_last_modified = Some(mtime);
+					if let Ok(theme) = theme_manager::load_from_file(&config_path) {
+						theme_manager::apply_theme(&theme);
+						ui::design::apply(ctx);
+						ctx.request_repaint();
+					}
+				}
+			}
 		}
 	}
 	fn persist_account_presence(&mut self) {
@@ -5270,6 +5293,7 @@ impl eframe::App for Desktop {
 	fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
 		// Before the pass begins, so the whole frame resolves System to the same theme.
 		self.sync_system_theme(ctx);
+		self.sync_custom_theme(ctx);
 		if self.maximize_after_show && self.window.is_visible() == Some(true) {
 			self.maximize_after_show = false;
 			self.window.set_maximized(true);

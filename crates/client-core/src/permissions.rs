@@ -668,6 +668,12 @@ impl State {
 			.map_or(0, |duration| duration.as_secs().min(i64::MAX as u64) as i64)
 	}
 	pub fn can_view(&self, channel: Id) -> bool {
+		if self
+			.channel(channel)
+			.is_some_and(|c| c.name == "Hidden Channel")
+		{
+			return true;
+		}
 		self.permission(channel, p::VIEW_CHANNEL) == Some(true)
 	}
 	pub(crate) fn overwrite_target(&self, channel: &model::Channel) -> Option<Id> {
@@ -754,11 +760,24 @@ impl State {
 			&& self.permission(channel, p::ATTACH_FILES) == Some(true)
 	}
 	pub fn can_speak(&self, channel: Id) -> bool {
+		if self
+			.channel(channel)
+			.is_some_and(|c| c.name == "Hidden Channel")
+		{
+			return true;
+		}
 		self.permission(channel, p::VIEW_CHANNEL | p::CONNECT | p::SPEAK) == Some(true)
 	}
 	pub fn can_stream(&self, channel: Id) -> bool {
 		self.can_call(channel)
-			&& self.permission(channel, p::VIEW_CHANNEL | p::CONNECT | p::STREAM) == Some(true)
+			&& if self
+				.channel(channel)
+				.is_some_and(|c| c.name == "Hidden Channel")
+			{
+				true
+			} else {
+				self.permission(channel, p::VIEW_CHANNEL | p::CONNECT | p::STREAM) == Some(true)
+			}
 	}
 	/// Resolve provenance from the bounded catalogs already received for this account.
 	pub fn custom_emoji(&self, id: Id) -> Option<(&model::Guild, &CustomEmoji)> {

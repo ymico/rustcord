@@ -267,10 +267,11 @@ impl Avatars {
 		self.no_animations.remove(&key);
 		// The worker decodes an animated avatar's frames with its still. Hover-only artwork keeps
 		// them only when it is about to play; otherwise they would sit unused in the pool.
-		if is_animated_profile_or_avatar_key(&key) && !self.wanted.remove(&key) {
+		if is_animated_profile_or_avatar_key(&key) && !self.avatar_animation && !self.wanted.remove(&key) {
 			self.release(key);
 			return;
 		}
+		self.wanted.remove(&key);
 		self.released.remove(&key);
 		let total: Duration = frames.iter().map(|(delay, _)| *delay).sum();
 		if total.is_zero() {
@@ -1089,6 +1090,8 @@ impl Avatars {
 			&& self.textures.contains_key(key)
 			&& !self.no_animations.contains(key)
 		{
+			self.released.remove(key);
+			self.wanted.insert(key.to_owned());
 			self.request(key.to_owned());
 		}
 		None
@@ -1138,8 +1141,10 @@ impl Avatars {
 				&& self.animate_gifs
 				&& !self.animations.contains_key(key)
 				&& !self.no_animations.contains(key)
-				&& !self.released.contains(key)
+				&& (!self.released.contains(key) || self.avatar_animation || ui.rect_contains_pointer(rect))
 			{
+				self.released.remove(key);
+				self.wanted.insert(key.to_string());
 				self.request(key.to_string());
 			}
 			animated_texture =

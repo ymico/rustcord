@@ -186,6 +186,26 @@ pub(crate) fn voice_badge(ui: &mut egui::Ui, in_voice: bool, has_status: bool) {
 	}
 }
 
+/// Prefix a status row with the shared "In a call" badge.
+pub(crate) fn call_badge(ui: &mut egui::Ui, has_status: bool) {
+	let colors = design::palette(ui);
+	let label = crate::i18n::translate("in-a-call");
+	icons::inline(ui, Icon::InCall, 12.0, colors.positive);
+	let width = ui.available_width() * if has_status { 0.5 } else { 1.0 };
+	ui.scope(|ui| {
+		ui.set_max_width(width);
+		ui.add(
+			egui::Label::new(RichText::new(&label).size(12.0).color(colors.positive))
+				.truncate()
+				.selectable(false),
+		)
+		.on_hover_text(&label);
+	});
+	if has_status {
+		ui.label(RichText::new("·").size(12.0).color(colors.muted));
+	}
+}
+
 pub(crate) fn server_tag_width(ui: &egui::Ui, tag: Option<&model::ClanTag>) -> f32 {
 	tag.map_or(0.0, |tag| {
 		let text = ui.painter().layout_no_wrap(
@@ -1034,13 +1054,26 @@ pub(crate) fn presence_color(status: &str) -> Color32 {
 /// Dot radius, ring width and centre. Banner avatars use a ~19 px dot tucked onto the avatar's
 /// lower-right rim; list avatars keep a thin ring in the corner.
 fn presence_badge_metrics(rect: Rect) -> (f32, f32, egui::Pos2) {
-	let (radius, ring, inset) = if rect.width() >= AVATAR {
-		(rect.width() * 0.12, 4.0, rect.width() * 0.15)
+	let is_square = crate::design::avatar_radius(rect.width()) == 0;
+	let (radius, ring, center) = if is_square {
+		let radius = if rect.width() >= AVATAR {
+			6.5
+		} else {
+			(rect.width() * 0.13).clamp(3.5, 6.0)
+		};
+		let ring = if rect.width() >= AVATAR { 1.5 } else { 1.0 };
+		let center = rect.right_bottom() - Vec2::splat(radius + ring);
+		(radius, ring, center)
 	} else {
-		let radius = (rect.width() * 0.17).clamp(5.0, 10.0);
-		(radius, 2.0, radius + 0.5)
+		let (radius, ring, inset) = if rect.width() >= AVATAR {
+			(rect.width() * 0.12, 4.0, rect.width() * 0.15)
+		} else {
+			let radius = (rect.width() * 0.17).clamp(5.0, 10.0);
+			(radius, 2.0, radius + 0.5)
+		};
+		(radius, ring, rect.right_bottom() - Vec2::splat(inset))
 	};
-	(radius, ring, rect.right_bottom() - Vec2::splat(inset))
+	(radius, ring, center)
 }
 /// Like Discord, the phone shows only for someone online from a phone.
 fn shows_phone(status: &str, clients: model::ClientPlatforms) -> bool {
@@ -3235,11 +3268,19 @@ pub fn show_with_session(
 				}));
 			}
 		}
-		ui.painter().circle_filled(
-			avatar_rect.center(),
-			avatar_size * 0.5 + AVATAR_RING,
-			theme.card,
-		);
+		if crate::design::avatar_radius(avatar_size) == 0 {
+			ui.painter().rect_filled(
+				avatar_rect.expand(AVATAR_RING),
+				0.0,
+				theme.card,
+			);
+		} else {
+			ui.painter().circle_filled(
+				avatar_rect.center(),
+				avatar_size * 0.5 + AVATAR_RING,
+				theme.card,
+			);
+		}
 		let pointer_on_presence = pointer_on_presence(
 			status,
 			clients,
@@ -4375,8 +4416,12 @@ pub(crate) fn docked(
 							..Default::default()
 						}));
 					}
-					ui.painter()
-						.circle_filled(avatar.center(), AVATAR * 0.5 + AVATAR_RING, ring);
+					if crate::design::avatar_radius(AVATAR) == 0 {
+						ui.painter().rect_filled(avatar.expand(AVATAR_RING), 0.0, ring);
+					} else {
+						ui.painter()
+							.circle_filled(avatar.center(), AVATAR * 0.5 + AVATAR_RING, ring);
+					}
 					ui.scope_builder(UiBuilder::new().max_rect(avatar), |ui| {
 						let response = avatars.with_avatar_animation(true, |avatars| match data {
 							Some(data) => avatars.show_profile_avatar(ui, data, AVATAR, state.demo),

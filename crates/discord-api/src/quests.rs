@@ -199,10 +199,28 @@ fn parse_list(bytes: &[u8]) -> Result<Vec<Quest>, Failure> {
 			.map(identifier)
 			.transpose()?
 			.or_else(|| {
+				task_val
+					.get("application_id")
+					.or_else(|| task_val.get("applicationId"))
+					.map(identifier)
+					.transpose()
+					.ok()
+					.flatten()
+			})
+			.or_else(|| {
 				config
 					.get("application")
 					.and_then(|v| v.get("id"))
 					.filter(|v| !v.is_null())
+					.map(identifier)
+					.transpose()
+					.ok()
+					.flatten()
+			})
+			.or_else(|| {
+				config
+					.get("application_id")
+					.or_else(|| config.get("applicationId"))
 					.map(identifier)
 					.transpose()
 					.ok()
@@ -299,8 +317,10 @@ impl DiscordApi {
 		let mut payload = serde_json::Map::new();
 		payload.insert("application_id".into(), json!(app.to_string()));
 		payload.insert("terminal".into(), json!(terminal));
-		if let Some(ctx) = context {
-			payload.insert("stream_key".into(), json!(ctx.key()?));
+		if quest.task.needs_voice() {
+			if let Some(ctx) = context {
+				payload.insert("stream_key".into(), json!(ctx.key()?));
+			}
 		}
 		let bytes = self
 			.request_limited(
@@ -316,10 +336,35 @@ impl DiscordApi {
 		)
 	}
 	pub async fn claim_quest(&self, quest: &Quest) -> Result<(), Failure> {
-		if !quest.status.completed || quest.status.claimed {
+		if (!quest.status.completed && quest.status.value < f64::from(quest.target)) || quest.status.claimed {
 			return Err(Failure::Protocol);
 		}
-		self.request_limited(Method::POST,&format!("/quests/{}/claim-reward",quest.id),Some(json!({"platform":0,"location":11,"is_targeted":false,"metadata_sealed":null,"traffic_metadata_sealed":quest.sealed})),MAX_ACTION_BYTES).await?;
+		let body = json!({
+			"platform": 0,
+			"location": 11,
+			"is_targeted": false,
+			"metadata_sealed": null,
+			"traffic_metadata_sealed": quest.sealed,
+		});
+		let res = self
+			.request_limited(
+				Method::POST,
+				&format!("/quests/{}/claim-reward", quest.id),
+				Some(body.clone()),
+				MAX_ACTION_BYTES,
+			)
+			.await;
+		if let Err(Failure::Protocol) = res {
+			self.request_limited(
+				Method::POST,
+				&format!("/quests/{}/claim", quest.id),
+				Some(body),
+				MAX_ACTION_BYTES,
+			)
+			.await?;
+		} else {
+			res?;
+		}
 		Ok(())
 	}
 }

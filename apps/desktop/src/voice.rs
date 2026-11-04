@@ -495,7 +495,12 @@ impl Voice {
 			let current = pending.is_some_and(|pending| {
 				pending.generation == state.generation
 					&& pending.accepts_confirmation(*channel, *request, *revision)
-					&& state.can_call(*channel)
+					&& (state.can_call(*channel)
+						|| state
+							.voice
+							.active
+							.as_ref()
+							.is_some_and(|call| call.channel == *channel))
 					&& state.voice.active.as_ref().is_some_and(|call| {
 						(call.channel, call.request) == (*channel, *request)
 							&& matches!(
@@ -520,7 +525,12 @@ impl Voice {
 				&& live.channel == *channel
 				&& live.request == *request
 				&& live.negotiation_revision == *revision
-				&& state.can_call(live.channel)
+				&& (state.can_call(live.channel)
+					|| state
+						.voice
+						.active
+						.as_ref()
+						.is_some_and(|call| call.channel == live.channel))
 				&& state.voice.active.as_ref().is_some_and(|call| {
 					call.channel == live.channel
 						&& call.request == live.request
@@ -561,16 +571,41 @@ impl Voice {
 					user,
 					channel: Some(channel),
 					session: Some(session),
+					guild,
+					negotiation_revision,
 					..
 				} if live.generation == state.generation
 					&& *request == live.request
-					&& *channel == live.channel
 					&& state.user.as_ref().is_some_and(|owner| owner.id == *user) =>
 				{
 					if session.expose() != live.session.as_str() {
 						let (channel, request) = (live.channel, live.request);
 						self.stop();
 						*event = voice::Event::TakenOver { channel, request };
+						return None;
+					}
+					if *channel != live.channel {
+						let user_id = *user;
+						let guild_id = *guild;
+						let session_val = session.expose().to_string();
+						let req = *request;
+						let new_chan = *channel;
+						let rev = *negotiation_revision;
+						self.stop();
+						self.pending = Some(Pending {
+							generation: state.generation,
+							channel: new_chan,
+							request: req,
+							ring: false,
+							user: user_id,
+							peer: None,
+							guild: guild_id,
+							session: Secret::new(session_val).ok(),
+							negotiation_revision: rev,
+							server: None,
+							started: Instant::now(),
+							failed_candidate: false,
+						});
 						return None;
 					}
 				}

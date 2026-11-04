@@ -862,17 +862,37 @@ impl Calls {
 				return Ok(());
 			}
 		}
+		let incoming_session = if own {
+			session.as_ref().map(|s| s.as_str())
+		} else {
+			None
+		};
+		let is_current_channel = self
+			.active
+			.is_some_and(|(channel, _)| state.channel_id == Some(channel))
+			&& self.active_guild == state.guild_id;
+		let changed_session = self.session_confirmed
+			&& incoming_session.is_some_and(|incoming| {
+				self.active_session
+					.as_ref()
+					.is_some_and(|previous| previous.expose() != incoming)
+			});
+		let taken_over = own && changed_session;
+		let moved = own
+			&& self.session_confirmed
+			&& state.channel_id.is_some()
+			&& !is_current_channel
+			&& !changed_session;
+		if moved && let Some(new_chan) = state.channel_id {
+			self.allowed.insert(new_chan, state.guild_id);
+		}
 		let allowed = state
 			.channel_id
 			.is_none_or(|channel| self.allowed.get(&channel) == Some(&state.guild_id));
 		if !allowed && !own {
 			return Ok(());
 		}
-		let matches_active = allowed
-			&& self
-				.active
-				.is_some_and(|(channel, _)| state.channel_id == Some(channel))
-			&& self.active_guild == state.guild_id;
+		let matches_active = allowed && is_current_channel;
 		if own
 			&& allowed
 			&& state.channel_id.is_some()
@@ -883,20 +903,11 @@ impl Calls {
 			// A previous-channel update cannot invalidate a newly submitted, unconfirmed Join.
 			return Ok(());
 		}
-		let secret = if own && matches_active {
+		let secret = if own && (matches_active || moved) {
 			session.map(|s| Secret::new(s.to_string())).transpose()?
 		} else {
 			None
 		};
-		let moved = self.session_confirmed && state.channel_id.is_some() && !matches_active;
-		let changed_session = self.session_confirmed
-			&& matches_active
-			&& secret.as_ref().is_some_and(|session| {
-				self.active_session
-					.as_ref()
-					.is_some_and(|previous| previous.expose() != session.expose())
-			});
-		let taken_over = own && (moved || changed_session);
 		if taken_over {
 			let (channel, request) = self.active.take().expect("confirmed active call");
 			self.active_guild = None;
@@ -907,6 +918,20 @@ impl Calls {
 			self.watch = None;
 			self.camera = false;
 			emit(Event::Voice(voice::Event::TakenOver { channel, request }))?;
+		} else if moved {
+			let (_, request) = self.active.expect("active call");
+			let new_channel = state.channel_id.expect("new channel");
+			self.active = Some((new_channel, request));
+			self.active_guild = state.guild_id;
+			self.negotiation_server = None;
+			self.session_confirmed = false;
+			self.stream = None;
+			self.watch = None;
+			self.camera = false;
+			self.negotiation_revision = self.negotiation_revision.wrapping_add(1);
+			if let Some(session) = &secret {
+				self.active_session = Some(Secret::new(session.expose().to_owned())?);
+			}
 		} else if let Some(session) = &secret
 			&& self
 				.active_session
@@ -940,7 +965,7 @@ impl Calls {
 			video: participant.video,
 			streaming: participant.streaming,
 		}))?;
-		if own && self.active.is_some() && !matches_active {
+		if own && self.active.is_some() && !matches_active && !moved {
 			self.active = None;
 			self.active_guild = None;
 			self.active_session = None;
@@ -2148,6 +2173,90 @@ mod tests {
 			);
 			assert_eq!(calls.active, Some((Id(21), 6)));
 		}
+	}
+
+	#[test]
+	fn an_admin_move_into_a_hidden_channel_maintains_call_and_permits_controls() {
+		let mut calls = Calls::default();
+		let guild = Some(Id(10));
+		let visible_channel = Id(20);
+		let hidden_channel = Id(99);
+		calls.allowed.insert(visible_channel, guild);
+		let events = Mutex::new(Vec::new());
+		let emit = |event| {
+			events.lock().unwrap().push(event);
+			Ok(())
+		};
+		let join = Command::Join {
+			channel: visible_channel,
+			request: 1,
+			ring: false,
+			mute: false,
+			deaf: false,
+		};
+		assert!(calls.packet(join).unwrap().is_some());
+		calls
+			.dispatch(
+				"VOICE_STATE_UPDATE",
+				&serde_json::to_vec(&json!({
+					"guild_id": guild,
+					"channel_id": visible_channel,
+					"user_id": Id(1),
+					"session_id": "session-token"
+				}))
+				.unwrap(),
+				Some(Id(1)),
+				&emit,
+			)
+			.unwrap();
+		confirm_transport(&mut calls, &emit);
+		assert_eq!(calls.active, Some((visible_channel, 1)));
+		events.lock().unwrap().clear();
+
+		// Admin moves the user into hidden channel 99 (not previously in allowed)
+		calls
+			.dispatch(
+				"VOICE_STATE_UPDATE",
+				&serde_json::to_vec(&json!({
+					"guild_id": guild,
+					"channel_id": hidden_channel,
+					"user_id": Id(1),
+					"session_id": "session-token"
+				}))
+				.unwrap(),
+				Some(Id(1)),
+				&emit,
+			)
+			.unwrap();
+
+		// Active call must be preserved and updated to hidden channel
+		assert_eq!(calls.active, Some((hidden_channel, 1)));
+		assert!(calls.allowed.contains_key(&hidden_channel));
+		assert!(
+			!events
+				.lock()
+				.unwrap()
+				.iter()
+				.any(|event| matches!(event, Event::Voice(voice::Event::TakenOver { .. })))
+		);
+		let state_event = events
+			.lock()
+			.unwrap()
+			.iter()
+			.find_map(|e| match e {
+				Event::Voice(voice::Event::State { channel, .. }) => Some(*channel),
+				_ => None,
+			});
+		assert_eq!(state_event, Some(Some(hidden_channel)));
+
+		// Leave command for hidden channel must successfully emit hang up frame
+		let leave_frame = calls
+			.packet(Command::Leave {
+				channel: hidden_channel,
+				request: 1,
+			})
+			.unwrap();
+		assert!(leave_frame.is_some());
 	}
 
 	#[test]

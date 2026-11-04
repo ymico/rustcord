@@ -638,8 +638,12 @@ impl MessagingUi {
 				);
 				inner.spacing_mut().item_spacing.x = 6.0;
 				// The name label carries the row's only tooltip.
+				let is_speaking = self.is_speaking(state, entry.channel, &entry.participant);
+				let animate = hovered || is_speaking;
 				let avatar = match user {
-					Some(user) => self.avatars.show_quiet(&mut inner, user, 28.0, state.demo),
+					Some(user) => self.avatars.with_avatar_animation(animate, |avatars| {
+						avatars.show_quiet(&mut inner, user, 28.0, state.demo)
+					}),
 					None => {
 						let (r, response) = inner
 							.allocate_exact_size(egui::Vec2::splat(28.0), egui::Sense::hover());
@@ -647,7 +651,7 @@ impl MessagingUi {
 						response
 					}
 				};
-				if self.is_speaking(state, entry.channel, &entry.participant) {
+				if is_speaking {
 					speaking_avatar(&inner, &avatar, name);
 				}
 				let locally_muted = self.voice_user_locally_muted(entry.participant.user);
@@ -1677,8 +1681,9 @@ impl MessagingUi {
 			ringing_pulse(ui, avatar_rect);
 		}
 		let avatar = if let Some(user) = user {
-			self.avatars
-				.show(&mut avatar_ui, user, avatar_size, state.demo)
+			self.avatars.with_avatar_animation(true, |avatars| {
+				avatars.show(&mut avatar_ui, user, avatar_size, state.demo)
+			})
 		} else {
 			design::avatar(&mut avatar_ui, name, avatar_size)
 		};
@@ -1699,23 +1704,45 @@ impl MessagingUi {
 		if let Some(icon) = silenced
 			&& video.is_none()
 		{
-			ui.painter().circle_stroke(
-				avatar.rect.center(),
-				avatar.rect.width() * 0.5 + 2.0,
-				egui::Stroke::new(2.0, colors.danger),
-			);
-			// The badge scales down with small avatars so it never hides the face.
-			let radius = (avatar_size * 0.2).clamp(7.0, 12.0);
-			let badge = avatar.rect.right_bottom() - egui::Vec2::splat(avatar_size * 0.14);
-			ui.painter().circle_filled(badge, radius, STAGE_FILL);
-			ui.painter()
-				.circle_filled(badge, radius - 2.0, colors.badge_fill());
-			crate::icons::paint(
-				ui.painter(),
-				icon,
-				egui::Rect::from_center_size(badge, egui::Vec2::splat(radius)),
-				egui::Color32::WHITE,
-			);
+			let is_square = crate::design::avatar_radius(avatar.rect.width()) == 0;
+			if is_square {
+				ui.painter().rect_stroke(
+					avatar.rect.expand(2.0),
+					0.0,
+					egui::Stroke::new(2.0, colors.danger),
+					egui::StrokeKind::Middle,
+				);
+				let radius = (avatar_size * 0.2).clamp(7.0, 12.0);
+				let badge = avatar.rect.right_bottom() - egui::Vec2::splat(radius);
+				let badge_rect = egui::Rect::from_center_size(badge, egui::Vec2::splat(radius * 2.0));
+				ui.painter().rect_filled(badge_rect, 0.0, STAGE_FILL);
+				ui.painter()
+					.rect_filled(badge_rect.shrink(2.0), 0.0, colors.badge_fill());
+				crate::icons::paint(
+					ui.painter(),
+					icon,
+					egui::Rect::from_center_size(badge, egui::Vec2::splat(radius)),
+					egui::Color32::WHITE,
+				);
+			} else {
+				ui.painter().circle_stroke(
+					avatar.rect.center(),
+					avatar.rect.width() * 0.5 + 2.0,
+					egui::Stroke::new(2.0, colors.danger),
+				);
+				// The badge scales down with small avatars so it never hides the face.
+				let radius = (avatar_size * 0.2).clamp(7.0, 12.0);
+				let badge = avatar.rect.right_bottom() - egui::Vec2::splat(avatar_size * 0.14);
+				ui.painter().circle_filled(badge, radius, STAGE_FILL);
+				ui.painter()
+					.circle_filled(badge, radius - 2.0, colors.badge_fill());
+				crate::icons::paint(
+					ui.painter(),
+					icon,
+					egui::Rect::from_center_size(badge, egui::Vec2::splat(radius)),
+					egui::Color32::WHITE,
+				);
+			}
 		}
 		if silenced.is_none() && speaking {
 			if video.is_none() && frameless {
@@ -2132,6 +2159,25 @@ impl MessagingUi {
 			.channels
 			.iter()
 			.any(|c| c.id == channel && c.kind == 2);
+		let in_this_call = state.voice.active.as_ref().is_some_and(|call| {
+			call.channel == channel && matches!(call.phase, Phase::Connected | Phase::Waiting)
+		});
+		if in_this_call && !guild {
+			let leave = ui
+				.add_enabled_ui(!state.demo, |ui| {
+					crate::icons::button(
+						ui,
+						crate::icons::Icon::HangUp,
+						32.0,
+						&crate::i18n::translate("voice-voice-card-section-disconnect"),
+					)
+				})
+				.inner;
+			if leave.clicked() && let Some(command) = state.leave_call() {
+				commands.push(command);
+			}
+			return leave;
+		}
 		let label = if guild {
 			"Join Voice"
 		} else if incoming {
@@ -3817,8 +3863,14 @@ impl MessagingUi {
 			reconnecting.map(|_| crate::i18n::translate("voice-voice-card-section-reconnecting"));
 		let channel = state
 			.channel(call.channel)
-			.map_or("Direct message", |c| c.name.as_str())
-			.to_owned();
+			.map(|c| c.name.clone())
+			.unwrap_or_else(|| {
+				if call.guild.is_some() {
+					"Hidden Channel".to_string()
+				} else {
+					"Direct message".to_string()
+				}
+			});
 		let guild = call
 			.guild
 			.and_then(|id| state.guild(id))
@@ -4362,11 +4414,20 @@ fn chrome_shade(ui: &egui::Ui, stage: egui::Rect, height: f32, top: bool, reveal
 fn ringing_pulse(ui: &egui::Ui, avatar: egui::Rect) {
 	const PERIOD: f64 = 1.6;
 	let phase = (ui.input(|input| input.time) % PERIOD / PERIOD) as f32;
-	ui.painter().circle_stroke(
-		avatar.center(),
-		avatar.width() * 0.5 + 4.0 + phase * 14.0,
-		egui::Stroke::new(3.0, STAGE_MUTED.gamma_multiply(0.9 * (1.0 - phase))),
-	);
+	if crate::design::avatar_radius(avatar.width()) == 0 {
+		ui.painter().rect_stroke(
+			avatar.expand(4.0 + phase * 14.0),
+			0.0,
+			egui::Stroke::new(3.0, STAGE_MUTED.gamma_multiply(0.9 * (1.0 - phase))),
+			egui::StrokeKind::Middle,
+		);
+	} else {
+		ui.painter().circle_stroke(
+			avatar.center(),
+			avatar.width() * 0.5 + 4.0 + phase * 14.0,
+			egui::Stroke::new(3.0, STAGE_MUTED.gamma_multiply(0.9 * (1.0 - phase))),
+		);
+	}
 	// The pulse only needs a smooth 30 fps while someone is being rung.
 	ui.ctx()
 		.request_repaint_after(std::time::Duration::from_millis(33));
@@ -4374,12 +4435,21 @@ fn ringing_pulse(ui: &egui::Ui, avatar: egui::Rect) {
 
 fn speaking_avatar(ui: &egui::Ui, avatar: &egui::Response, name: &str) {
 	let colors = design::palette(ui);
-	// Inset the centered stroke so the ring stays inside the avatar.
-	ui.painter().circle_stroke(
-		avatar.rect.center(),
-		avatar.rect.width() * 0.5 - 1.5,
-		egui::Stroke::new(3.0, colors.positive),
-	);
+	if crate::design::avatar_radius(avatar.rect.width()) == 0 {
+		ui.painter().rect_stroke(
+			avatar.rect.shrink(1.5),
+			0.0,
+			egui::Stroke::new(3.0, colors.positive),
+			egui::StrokeKind::Inside,
+		);
+	} else {
+		// Inset the centered stroke so the ring stays inside the avatar.
+		ui.painter().circle_stroke(
+			avatar.rect.center(),
+			avatar.rect.width() * 0.5 - 1.5,
+			egui::Stroke::new(3.0, colors.positive),
+		);
+	}
 	let label = format!("{name} · Speaking");
 	// Callers own the avatar's tooltip; a second one here would stack under it.
 	avatar.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Image, true, &label));

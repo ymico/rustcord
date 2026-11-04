@@ -2685,7 +2685,7 @@ impl MessagingUi {
 							.size()
 							.y
 					});
-					let subtitle_height = if in_voice {
+					let subtitle_height = if in_voice || in_call {
 						subtitle_height.max(16.0)
 					} else {
 						subtitle_height
@@ -2705,10 +2705,14 @@ impl MessagingUi {
 							.truncate(),
 						);
 						{
-							if subtitle.is_some() || in_voice {
+							if subtitle.is_some() || in_voice || in_call {
 								ui.horizontal(|ui| {
 									ui.spacing_mut().item_spacing.x = 4.0;
-									profiles::voice_badge(ui, in_voice, subtitle.is_some());
+									if in_call {
+										profiles::call_badge(ui, subtitle.is_some());
+									} else if in_voice {
+										profiles::voice_badge(ui, in_voice, subtitle.is_some());
+									}
 									if let Some(text) = subtitle {
 										ui.add(
 											egui::Label::new(
@@ -2722,17 +2726,6 @@ impl MessagingUi {
 							}
 						}
 					});
-					if in_call {
-						ui.add_space(4.0);
-						icons::inline(ui, icons::Icon::InCall, 16.0, colors.positive);
-						ui.add(
-							egui::Label::new(
-								design::medium(ui, language.text("in-a-call"), 14.0)
-									.color(colors.positive),
-							)
-							.selectable(false),
-						);
-					}
 				});
 			});
 		});

@@ -365,7 +365,6 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 						theme.radius = None;
 						theme.square_avatars = None;
 						theme.pixel_font = None;
-						theme.accent = None;
 					} else {
 						eprintln!("Error: Unknown theme preset '{}'. Run 'rustcord theme list' to view available presets.", arg);
 						return Some(1);

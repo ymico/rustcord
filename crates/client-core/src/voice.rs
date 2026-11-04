@@ -501,6 +501,17 @@ impl ClientState {
 			&& self.has_voice_access(channel)
 	}
 	pub(crate) fn has_voice_access(&self, channel: Id) -> bool {
+		if self
+			.voice
+			.active
+			.as_ref()
+			.is_some_and(|c| c.channel == channel)
+			&& self
+				.channel(channel)
+				.is_some_and(|c| c.name == "Hidden Channel")
+		{
+			return true;
+		}
 		self.permission(
 			channel,
 			model::permissions::VIEW_CHANNEL | model::permissions::CONNECT,
@@ -522,7 +533,15 @@ impl ClientState {
 		})
 	}
 	pub fn can_camera(&self, channel: Id) -> bool {
-		self.can_call(channel) && self.permission(channel, model::permissions::STREAM) == Some(true)
+		self.can_call(channel)
+			&& if self
+				.channel(channel)
+				.is_some_and(|c| c.name == "Hidden Channel")
+			{
+				true
+			} else {
+				self.permission(channel, model::permissions::STREAM) == Some(true)
+			}
 	}
 	pub fn start_call(&mut self, channel: Id, ring: bool) -> Option<crate::Command> {
 		self.start_call_with_mute(channel, ring, false, false)
@@ -993,21 +1012,64 @@ impl ClientState {
 				}) {
 					self.voice.preview = None;
 				}
-				let Some(call) = &mut self.voice.active else {
+				let Some((call_request, call_channel, call_guild)) =
+					self.voice.active.as_ref().map(|c| (c.request, c.channel, c.guild))
+				else {
 					return;
 				};
 				if self.user.as_ref().is_some_and(|u| u.id == user) {
-					if request != Some(call.request) {
+					if request != Some(call_request) {
 						return;
 					}
-					if channel != Some(call.channel) || guild != call.guild {
-						self.voice.outgoing = None;
-						if call.phase != Phase::Failed {
-							self.voice.active = None;
-						}
+					if channel.is_none() {
+						self.end_voice_channel(call_channel);
 						return;
+					}
+					if let Some(new_channel) = channel
+						&& (new_channel != call_channel || guild != call_guild)
+					{
+						if self
+							.channels
+							.iter()
+							.any(|c| c.id == call_channel && c.name == "Hidden Channel")
+						{
+							self.channels
+								.retain(|c| c.id != call_channel || c.name != "Hidden Channel");
+						}
+						if self.channel(new_channel).is_none() {
+							self.channels.push(model::Channel {
+								icon: None,
+								last_message: None,
+								id: new_channel,
+								guild,
+								parent_id: None,
+								position: 0,
+								name: if guild.is_some() {
+									"Hidden Channel".to_string()
+								} else {
+									"Direct message".to_string()
+								},
+								kind: if guild.is_some() { 2 } else { 1 },
+								recipients: Vec::new(),
+								member_list_id: None,
+								message_count: None,
+								tags: None,
+							});
+						}
+						self.invalidate_navigation();
+						if let Some(call) = &mut self.voice.active {
+							call.channel = new_channel;
+							call.guild = guild;
+							call.participants.clear();
+							call.watching = None;
+							call.phase = Phase::Connecting;
+						}
+						self.voice.outgoing = None;
 					}
 				}
+				let Some(call) = &mut self.voice.active else {
+					return;
+				};
 				if guild != call.guild {
 					return;
 				}
@@ -1188,6 +1250,10 @@ impl ClientState {
 			.is_some_and(|c| c.channel == channel && c.phase != Phase::Failed)
 		{
 			self.voice.active = None;
+		}
+		if self.channels.iter().any(|c| c.id == channel && c.name == "Hidden Channel") {
+			self.channels.retain(|c| c.id != channel || c.name != "Hidden Channel");
+			self.invalidate_navigation();
 		}
 	}
 	pub fn disconnect_voice(&mut self, reason: &'static str) {
@@ -2399,5 +2465,109 @@ mod tests {
 				assert_eq!(state.outgoing_ring(), None, "{end} must consume the intent");
 			}
 		}
+	}
+
+	#[test]
+	fn server_move_into_hidden_voice_channel_preserves_active_call_and_controls() {
+		let mut state = dm_state();
+		state.guilds.push(model::Guild {
+			id: Id(10),
+			name: "guild".into(),
+			icon: None,
+			emojis: None,
+			stickers: None,
+			default_message_notifications: None,
+		});
+		state.channels.push(Channel {
+			last_message: None,
+			id: Id(20),
+			name: "visible-voice".into(),
+			guild: Some(Id(10)),
+			parent_id: None,
+			position: 0,
+			kind: 2,
+			recipients: Vec::new(),
+			icon: None,
+			member_list_id: None,
+			tags: None,
+			message_count: None,
+		});
+		use model::permissions as p;
+		state
+			.permissions
+			.replace(p::Snapshot {
+				guilds: vec![p::Guild {
+					id: Id(10),
+					owner: Some(Id(999)),
+					roles: Some(vec![p::Role {
+						name: String::new(),
+						color: 0,
+						secondary_color: None,
+						tertiary_color: None,
+						position: 0,
+						hoist: false,
+						managed: false,
+						id: Id(10),
+						bits: p::VIEW_CHANNEL | p::CONNECT | p::SPEAK,
+					}]),
+					member: Some(p::Member {
+						roles: vec![],
+						timeout_until: None,
+					}),
+				}],
+				channels: vec![p::Channel {
+					id: Id(20),
+					guild: Id(10),
+					overwrites: Some(vec![]),
+				}],
+			})
+			.unwrap();
+
+		assert!(state.start_call(Id(20), false).is_some());
+		let request = state.voice.active.as_ref().unwrap().request;
+		assert_eq!(state.voice.active.as_ref().unwrap().channel, Id(20));
+
+		// Admin moves the user into hidden channel Id(99), not in state.channels
+		state.apply_voice(Event::State {
+			guild: Some(Id(10)),
+			member: None,
+			server_muted: false,
+			server_deafened: false,
+			request: Some(request),
+			channel: Some(Id(99)),
+			user: Id(1),
+			session: None,
+			negotiation_revision: Some(2),
+			muted: false,
+			deafened: false,
+			video: false,
+			streaming: false,
+		});
+
+		// Verify active call was preserved and switched to hidden channel
+		let active = state.voice.active.as_ref().expect("call must remain active");
+		assert_eq!(active.channel, Id(99));
+		assert_eq!(active.request, request);
+
+		// Verify synthetic channel created with correct metadata
+		let channel = state.channel(Id(99)).expect("hidden channel must exist");
+		assert_eq!(channel.name, "Hidden Channel");
+		assert_eq!(channel.kind, 2);
+		assert_eq!(channel.guild, Some(Id(10)));
+
+		// Verify permissions and access
+		assert!(state.has_voice_access(Id(99)));
+		assert!(state.can_call(Id(99)));
+		assert!(state.can_speak(Id(99)));
+
+		// Leaving call cleans up
+		let leave_cmd = state.leave_call().expect("leave command must be returned");
+		assert!(matches!(
+			leave_cmd,
+			crate::Command::Voice(Command::Leave { channel: Id(99), request: r }) if r == request
+		));
+		assert!(state.voice.active.is_none());
+		state.apply_voice(Event::Deleted { channel: Id(99) });
+		assert!(state.channel(Id(99)).is_none());
 	}
 }

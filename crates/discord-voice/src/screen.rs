@@ -704,7 +704,21 @@ pub(super) fn preview_frame(frame: &RawFrame) -> Result<image::RgbaImage, &'stat
 		.min(1.0);
 	let width = (f64::from(frame.width) * scale).round().max(1.0) as u32;
 	let height = (f64::from(frame.height) * scale).round().max(1.0) as u32;
-	// ponytail: nearest sampling keeps the ten-fps preview cheap; use filtered scaling if needed.
+	if frame.width == width && frame.height == height {
+		let mut buffer = vec![0u8; (width * height * 4) as usize];
+		let row_bytes = (width * 4) as usize;
+		for y in 0..height as usize {
+			let src_row = &frame.data[y * frame.stride..y * frame.stride + row_bytes];
+			let dst_row = &mut buffer[y * row_bytes..(y + 1) * row_bytes];
+			for (src, dst) in src_row.chunks_exact(4).zip(dst_row.chunks_exact_mut(4)) {
+				dst[0] = src[2];
+				dst[1] = src[1];
+				dst[2] = src[0];
+				dst[3] = 255;
+			}
+		}
+		return image::RgbaImage::from_raw(width, height, buffer).ok_or("Invalid screen frame");
+	}
 	Ok(image::RgbaImage::from_fn(width, height, |x, y| {
 		let source_x = (x * frame.width / width) as usize;
 		let source_y = (y * frame.height / height) as usize;
@@ -819,9 +833,9 @@ mod tests {
 				data: vec![0; width as usize * height as usize * 4],
 			};
 			let preview = preview_frame(&frame).unwrap();
-			assert!(preview.width() > 0 && preview.width() <= 640);
-			assert!(preview.height() > 0 && preview.height() <= 360);
-			assert!(preview.as_raw().len() <= 640 * 360 * 4);
+			assert!(preview.width() > 0 && preview.width() <= 1280);
+			assert!(preview.height() > 0 && preview.height() <= 720);
+			assert!(preview.as_raw().len() <= 1280 * 720 * 4);
 		}
 		assert!(
 			preview_frame(&RawFrame {

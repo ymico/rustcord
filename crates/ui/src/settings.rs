@@ -1222,11 +1222,8 @@ impl MessagingUi {
 						{
 							if let Some(variant) = variant {
 								design::set_variant(variant);
-								design::reset_overrides();
-								self.primary_color = None;
 								design::apply(ui.ctx());
 								self.theme_variant_changed = Some(variant);
-								self.theme_customization_changed = false;
 							}
 							self.extensions
 								.queue(ui.ctx(), crate::ExtensionRequest::SelectTheme { id });

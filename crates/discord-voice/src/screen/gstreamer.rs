@@ -97,6 +97,7 @@ impl Capture {
 			"width={},height={},pixel-aspect-ratio=1/1",
 			settings.width, settings.height
 		);
+		let preview_fps = settings.fps.clamp(15, 30);
 		let (scale, preview_scale) = match mode {
 			Mode::Va => (
 				format!(
@@ -157,7 +158,7 @@ impl Capture {
 			split. ! queue max-size-buffers=1 max-size-bytes={MAX_RAW_BYTES} max-size-time=0 leaky=downstream ! \
 			identity name=gate ! {encode} appsink name=frames sync=false async=false max-buffers=1 enable-last-sample=false wait-on-eos=false \
 			split. ! queue max-size-buffers=1 max-size-bytes={MAX_RAW_BYTES} max-size-time=0 leaky=downstream ! \
-			valve name=preview-gate drop-mode=forward-sticky-events ! videorate drop-only=true ! video/x-raw(ANY),framerate=10/1 ! {preview_scale} ! \
+			valve name=preview-gate drop-mode=forward-sticky-events ! videorate drop-only=true ! video/x-raw(ANY),framerate={preview_fps}/1 ! {preview_scale} ! \
 			appsink name=preview sync=false async=false max-buffers=1 drop=true enable-last-sample=false wait-on-eos=false",
 			settings.fps
 		);

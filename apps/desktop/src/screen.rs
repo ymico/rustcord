@@ -453,6 +453,9 @@ impl Screen {
 					|| (state.selected == Some(live.context.channel)
 						&& !ctx.input(|input| input.viewport().minimized.unwrap_or(false))),
 			);
+			if ui.screen.preview.is_some() {
+				ctx.request_repaint_after(Duration::from_millis(33));
+			}
 			if let Some(frame) = live.worker.take_preview() {
 				let image = egui::ColorImage::from_rgba_unmultiplied(
 					[frame.width() as usize, frame.height() as usize],
@@ -460,14 +463,15 @@ impl Screen {
 				);
 				if let Some(texture) = &mut ui.screen.preview {
 					texture.set(image, egui::TextureOptions::LINEAR);
+					ctx.request_repaint();
 				} else {
 					ui.screen.preview =
 						Some(ctx.load_texture("local-screen", image, egui::TextureOptions::LINEAR));
 					let cue = model::notification_preferences::Sound::ScreenShareOn;
 					if ui.notification_options.allows(cue) {
 						ui.notification_preview = Some(cue);
-						ctx.request_repaint();
 					}
+					ctx.request_repaint();
 				}
 			}
 		} else {
