@@ -1,7 +1,13 @@
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:08050e,70:9333ea,100:c084fc&height=120&section=header" width="100%" alt="Header" />
+</p>
+
+<div align="center">
+
 # Rustcord
 
 <p align="center">
-  <img src="packaging/linux/hicolor/128x128/apps/rustcord.png" alt="Rustcord" width="128" height="128" />
+  <img src="packaging/linux/hicolor/128x128/apps/rustcord.png" alt="Rustcord" width="112" height="112" />
 </p>
 
 <p align="center">
@@ -9,19 +15,20 @@
 </p>
 
 <p align="center">
-  <a href="#downloads--releases"><strong>📦 Downloads</strong></a> &nbsp;•&nbsp;
-  <a href="#features"><strong>⚡ Features</strong></a> &nbsp;•&nbsp;
-  <a href="#performance"><strong>📊 Performance</strong></a> &nbsp;•&nbsp;
-  <a href="#building-from-source"><strong>🛠️ Build</strong></a> &nbsp;•&nbsp;
-  <a href="#architecture"><strong>🏗️ Architecture</strong></a>
+  <a href="#downloads--releases"><strong>Downloads</strong></a> &nbsp;•&nbsp;
+  <a href="#features"><strong>Features</strong></a> &nbsp;•&nbsp;
+  <a href="#building-from-source"><strong>Build</strong></a> &nbsp;•&nbsp;
+  <a href="#architecture"><strong>Architecture</strong></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/surf1k/rustcord/releases"><img src="https://img.shields.io/github/v/release/surf1k/rustcord?label=release&color=5865F2" alt="GitHub Release" /></a>
-  <a href="Cargo.toml"><img src="https://img.shields.io/badge/rust-1.98.1_pinned-blue.svg?logo=rust" alt="Rust 1.98.1 Pinned" /></a>
-  <a href="crates/ui"><img src="https://img.shields.io/badge/ui-egui%20%2F%20wgpu-orange.svg" alt="UI egui/wgpu" /></a>
-  <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-green.svg" alt="License: MIT or Apache-2.0" /></a>
+  <a href="https://github.com/ym1co/rustcord/releases"><img src="https://img.shields.io/github/v/release/ym1co/rustcord?label=release&color=5865F2&style=flat-square" alt="GitHub Release" /></a>
+  <a href="Cargo.toml"><img src="https://img.shields.io/badge/rust-1.98.1_pinned-blue.svg?logo=rust&style=flat-square" alt="Rust 1.98.1 Pinned" /></a>
+  <a href="crates/ui"><img src="https://img.shields.io/badge/ui-egui_%2F_wgpu-orange.svg?style=flat-square" alt="UI egui/wgpu" /></a>
+  <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT_OR_Apache--2.0-green.svg?style=flat-square" alt="License: MIT or Apache-2.0" /></a>
 </p>
+
+</div>
 
 ---
 
@@ -33,25 +40,25 @@
 
 ## Downloads & Releases
 
-Pre-compiled release packages are published on GitHub [Releases](https://github.com/surf1k/rustcord/releases).
+Pre-compiled release packages are published on GitHub [Releases](https://github.com/ym1co/rustcord/releases).
 
 | Platform | Format | Architecture | Download |
 |---|---|---|---|
-| **Windows** | `.zip` (Portable `rustcord.exe`) | `x86_64` | [`rustcord-windows-x86_64.zip`](https://github.com/surf1k/rustcord/releases/latest) |
-| **Linux** | `.rpm` (Fedora / RHEL) | `x86_64` | [`rustcord-0.1.0-1.fc44.x86_64.rpm`](https://github.com/surf1k/rustcord/releases/latest) |
-| **Linux** | `.tar.gz` (Generic portable) | `x86_64` | [`rustcord-v0.1.0-linux-x86_64.tar.gz`](https://github.com/surf1k/rustcord/releases/latest) |
-| **macOS** | `.zip` (`Rustcord.app`) | Apple Silicon (`arm64`) | [`rustcord-macos-arm64.zip`](https://github.com/surf1k/rustcord/releases/latest) |
+| **Windows** | `.zip` (Portable `rustcord.exe`) | `x86_64` | [`rustcord-windows-x86_64.zip`](https://github.com/ym1co/rustcord/releases/latest) |
+| **Linux** | `.rpm` (Fedora / RHEL) | `x86_64` | [`rustcord-0.1.0-1.fc44.x86_64.rpm`](https://github.com/ym1co/rustcord/releases/latest) |
+| **Linux** | `.tar.gz` (Generic portable) | `x86_64` | [`rustcord-v0.1.0-linux-x86_64.tar.gz`](https://github.com/ym1co/rustcord/releases/latest) |
+| **macOS** | `.zip` (`Rustcord.app`) | Apple Silicon (`arm64`) | [`rustcord-macos-arm64.zip`](https://github.com/ym1co/rustcord/releases/latest) |
 
 ---
 
 ## Features
 
-### ⚡ Extreme Performance & Low Memory Footprint
+### Extreme Performance & Low Memory Footprint
 - **Microsoft `mimalloc` Global Allocator**: Eliminates glibc thread-arena memory fragmentation across 60+ threads.
 - **Strict Resident Memory**: Runs at ~100–180 MiB RAM even in active voice calls with video streams (up to 10× lighter than official Discord).
 - **GPU-Accelerated Immediate Mode UI**: Instant 60/120+ FPS rendering powered by `wgpu` without WebViews or Chromium overhead.
 
-### 🎨 Custom Themes, Presets & Terminal Controls
+### Custom Themes, Presets & Terminal Controls
 - **Built-in Theme Presets**:
   - `default`: Classic Discord dark theme (6px radius, blurple accent `#5865f2`).
   - `smooth`: Sleek modern dark theme with smooth rounded corners (12px radius, tokyo blue `#7aa2f7`).
@@ -70,23 +77,23 @@ Pre-compiled release packages are published on GitHub [Releases](https://github.
 - **Custom Theme File**: Write and load custom themes in `~/.config/rustcord/theme.json` with custom corner radius, window radius, and all 18 Discord color tokens.
 - **CLI Launch Flags**: `rustcord --theme <preset>`, `rustcord --accent <#hex>`, `rustcord --theme-file <path>`.
 
-### 🎮 Automated Discord Quests
-- **Movable Quests Button**: Clean `🎯 Quests` pill badge anchored at the top-right header (freely draggable anywhere on screen, keeping the chat composer completely unobstructed).
-- **Port of Orion Automation Engine**: Background game spoofing, video task progress, and activity heartbeat loops.
+### Automated Discord Quests
+- **Movable Quests Button**: Clean pill badge anchored at the top-right header (freely draggable anywhere on screen, keeping the chat composer completely unobstructed).
+- **Automation Engine**: Background game spoofing, video task progress, and activity heartbeat loops.
 - **Auto-Enroll & Auto-Claim**: Automatically discovers available quests, signs up, runs them in the background, and claims gift codes.
-- **"⚡ Auto Complete All"**: One-click completion of all eligible desktop quests in sequence.
+- **Auto Complete All**: One-click completion of all eligible desktop quests in sequence.
 
-### 🔒 Persistent Sessions
+### Persistent Sessions
 - **Safe Session Restoration**: Automatically remembers your authenticated Discord token in a private `0600` local credential store.
 - **Seamless Launch**: Restores your account, servers, and channels immediately upon launch without repeated logins.
 
-### 🖥️ Native Screen Sharing & Voice
+### Native Screen Sharing & Voice
 - **Wayland & Hyprland Support**: Monotonic presentation timestamps (PTS) for PipeWire portal buffers, eliminating frozen screen streams.
 - **Hardware Acceleration**: Automatic NVENC (`nvh264enc`) hardware encoding with repeated sequence headers (SPS/PPS) for instant client decode.
 - **Adjustable Presets**: Balanced (720p30), Sharp (1080p30), and Smooth (1080p60) screen capture presets.
 - **Speaking Indicator**: Glowing green aura around your own avatar in voice channels whenever your microphone transmits.
 
-### 📬 Global Single-Click "Mark All as Read"
+### Global Single-Click "Mark All as Read"
 - **One-Click Instant Clear**: Dedicated checkmark button in the navigation rail clears all unread channels, server mention badges, and notification pips in 0ms.
 - **Immediate Local Clear**: Eliminates repeated clicking by updating all local channels immediately and synchronizing bulk acks asynchronously in the background.
 
@@ -140,3 +147,9 @@ Dual-licensed under either:
 - **Apache License, Version 2.0** ([LICENSE-APACHE](LICENSE-APACHE))
 
 at your option.
+
+---
+
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:c084fc,30:9333ea,100:08050e&height=80&section=footer" width="100%" alt="Footer" />
+</p>
