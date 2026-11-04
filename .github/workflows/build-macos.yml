@@ -1,0 +1,42 @@
+name: Build macOS Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag'
+        required: true
+        default: 'v0.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS (Universal)
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.1
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Build release binaries
+        run: |
+          cargo build --release --locked -p serein --bin rustcord --target aarch64-apple-darwin
+          cargo build --release --locked -p serein --bin rustcord --target x86_64-apple-darwin
+      - name: Create Universal macOS App Bundle
+        run: |
+          mkdir -p "Rustcord.app/Contents/MacOS"
+          mkdir -p "Rustcord.app/Contents/Resources"
+          lipo -create -output "Rustcord.app/Contents/MacOS/rustcord" \
+            target/aarch64-apple-darwin/release/rustcord \
+            target/x86_64-apple-darwin/release/rustcord
+          cp packaging/macos/Info.plist "Rustcord.app/Contents/"
+          cp README.md LICENSE-MIT Rustcord.app/Contents/Resources/
+          ditto -c -k --sequesterRsrc Rustcord.app "rustcord-macos-arm64.zip"
+      - name: Upload macOS to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ inputs.tag }}
+        run: |
+          gh release upload "$TAG_NAME" rustcord-macos-arm64.zip --clobber
