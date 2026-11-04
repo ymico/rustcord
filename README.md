@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ym1co/rustcord/releases"><img src="https://img.shields.io/github/v/release/ym1co/rustcord?label=release&color=5865F2&style=flat-square" alt="GitHub Release" /></a>
+  <a href="https://github.com/ymico/rustcord/releases"><img src="https://img.shields.io/github/v/release/ymico/rustcord?label=release&color=5865F2&style=flat-square" alt="GitHub Release" /></a>
   <a href="Cargo.toml"><img src="https://img.shields.io/badge/rust-1.98.1_pinned-blue.svg?logo=rust&style=flat-square" alt="Rust 1.98.1 Pinned" /></a>
   <a href="crates/ui"><img src="https://img.shields.io/badge/ui-egui_%2F_wgpu-orange.svg?style=flat-square" alt="UI egui/wgpu" /></a>
   <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT_OR_Apache--2.0-green.svg?style=flat-square" alt="License: MIT or Apache-2.0" /></a>
@@ -40,14 +40,14 @@
 
 ## Downloads & Releases
 
-Pre-compiled release packages are published on GitHub [Releases](https://github.com/ym1co/rustcord/releases).
+Pre-compiled release packages are published on GitHub [Releases](https://github.com/ymico/rustcord/releases).
 
 | Platform | Format | Architecture | Download |
 |---|---|---|---|
-| **Windows** | `.zip` (Portable `rustcord.exe`) | `x86_64` | [`rustcord-windows-x86_64.zip`](https://github.com/ym1co/rustcord/releases/latest) |
-| **Linux** | `.rpm` (Fedora / RHEL) | `x86_64` | [`rustcord-0.1.0-1.fc44.x86_64.rpm`](https://github.com/ym1co/rustcord/releases/latest) |
-| **Linux** | `.tar.gz` (Generic portable) | `x86_64` | [`rustcord-v0.1.0-linux-x86_64.tar.gz`](https://github.com/ym1co/rustcord/releases/latest) |
-| **macOS** | `.zip` (`Rustcord.app`) | Apple Silicon (`arm64`) | [`rustcord-macos-arm64.zip`](https://github.com/ym1co/rustcord/releases/latest) |
+| **Windows** | `.zip` (Portable `rustcord.exe`) | `x86_64` | [`rustcord-windows-x86_64.zip`](https://github.com/ymico/rustcord/releases/latest) |
+| **Linux** | `.rpm` (Fedora / RHEL) | `x86_64` | [`rustcord-0.1.0-1.fc44.x86_64.rpm`](https://github.com/ymico/rustcord/releases/latest) |
+| **Linux** | `.tar.gz` (Generic portable) | `x86_64` | [`rustcord-v0.1.0-linux-x86_64.tar.gz`](https://github.com/ymico/rustcord/releases/latest) |
+| **macOS** | `.zip` (`Rustcord.app`) | Apple Silicon (`arm64`) | [`rustcord-macos-arm64.zip`](https://github.com/ymico/rustcord/releases/latest) |
 
 ---
 
