@@ -1714,7 +1714,8 @@ impl MessagingUi {
 				);
 				let radius = (avatar_size * 0.2).clamp(7.0, 12.0);
 				let badge = avatar.rect.right_bottom() - egui::Vec2::splat(radius);
-				let badge_rect = egui::Rect::from_center_size(badge, egui::Vec2::splat(radius * 2.0));
+				let badge_rect =
+					egui::Rect::from_center_size(badge, egui::Vec2::splat(radius * 2.0));
 				ui.painter().rect_filled(badge_rect, 0.0, STAGE_FILL);
 				ui.painter()
 					.rect_filled(badge_rect.shrink(2.0), 0.0, colors.badge_fill());
@@ -2173,7 +2174,9 @@ impl MessagingUi {
 					)
 				})
 				.inner;
-			if leave.clicked() && let Some(command) = state.leave_call() {
+			if leave.clicked()
+				&& let Some(command) = state.leave_call()
+			{
 				commands.push(command);
 			}
 			return leave;

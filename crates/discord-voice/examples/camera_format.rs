@@ -1,5 +1,5 @@
 //! Offline capture-selection debug check; never opens a camera.
-use discord_voice::camera::{HEIGHT, WIDTH, FPS};
+use discord_voice::camera::{FPS, HEIGHT, WIDTH};
 #[path = "../src/camera/format.rs"]
 mod format;
 

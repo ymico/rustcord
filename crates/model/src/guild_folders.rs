@@ -20,6 +20,7 @@ pub struct Folder {
 pub struct Settings {
 	pub folders: Vec<Folder>,
 	pub version: u64,
+	pub favorite_channels: Vec<Id>,
 }
 
 impl Settings {
@@ -63,6 +64,11 @@ impl Settings {
 							.saturating_add(folder.name.as_ref().map_or(0, String::capacity))
 					})
 					.fold(0usize, usize::saturating_add),
+			)
+			.saturating_add(
+				self.favorite_channels
+					.capacity()
+					.saturating_mul(size_of::<Id>()),
 			)
 	}
 }

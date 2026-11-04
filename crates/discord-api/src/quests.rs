@@ -160,23 +160,37 @@ fn parse_list(bytes: &[u8]) -> Result<Vec<Quest>, Failure> {
 		let is_console = |k: &str| k.contains("XBOX") || k.contains("PLAYSTATION");
 		let task_keys: Vec<&str> = tasks_map.keys().map(|k| k.as_str()).collect();
 
-		let (key, mut task) = if let Some(&k) = task_keys.iter().find(|&&k| k == "ACHIEVEMENT_IN_ACTIVITY") {
-			(k, Task::Achievement)
-		} else if let Some(&k) = task_keys.iter().find(|&&k| k == "PLAY_ACTIVITY") {
-			(k, Task::Activity)
-		} else if let Some(&k) = task_keys.iter().find(|&&k| k == "WATCH_VIDEO" || (k.contains("VIDEO") && !is_console(k))) {
-			(k, Task::Video)
-		} else if let Some(&k) = task_keys.iter().find(|&&k| k == "PLAY_ON_DESKTOP" || k == "PLAY_ON_DESKTOP_V2" || (k.starts_with("PLAY") && !is_console(k))) {
-			(k, Task::PlayGame)
-		} else if let Some(&k) = task_keys.iter().find(|&&k| k == "STREAM_ON_DESKTOP" || (k.starts_with("STREAM") && !is_console(k))) {
-			(k, Task::StreamGame)
-		} else if let Some(&k) = task_keys.iter().find(|&&k| k.contains("ACTIVITY") && !is_console(k)) {
-			(k, Task::Activity)
-		} else if let Some(&k) = task_keys.iter().find(|&&k| !is_console(k)) {
-			(k, Task::PlayGame)
-		} else {
-			(task_keys[0], Task::Unsupported)
-		};
+		let (key, mut task) =
+			if let Some(&k) = task_keys.iter().find(|&&k| k == "ACHIEVEMENT_IN_ACTIVITY") {
+				(k, Task::Achievement)
+			} else if let Some(&k) = task_keys.iter().find(|&&k| k == "PLAY_ACTIVITY") {
+				(k, Task::Activity)
+			} else if let Some(&k) = task_keys
+				.iter()
+				.find(|&&k| k == "WATCH_VIDEO" || (k.contains("VIDEO") && !is_console(k)))
+			{
+				(k, Task::Video)
+			} else if let Some(&k) = task_keys.iter().find(|&&k| {
+				k == "PLAY_ON_DESKTOP"
+					|| k == "PLAY_ON_DESKTOP_V2"
+					|| (k.starts_with("PLAY") && !is_console(k))
+			}) {
+				(k, Task::PlayGame)
+			} else if let Some(&k) = task_keys
+				.iter()
+				.find(|&&k| k == "STREAM_ON_DESKTOP" || (k.starts_with("STREAM") && !is_console(k)))
+			{
+				(k, Task::StreamGame)
+			} else if let Some(&k) = task_keys
+				.iter()
+				.find(|&&k| k.contains("ACTIVITY") && !is_console(k))
+			{
+				(k, Task::Activity)
+			} else if let Some(&k) = task_keys.iter().find(|&&k| !is_console(k)) {
+				(k, Task::PlayGame)
+			} else {
+				(task_keys[0], Task::Unsupported)
+			};
 
 		let task_val = &tasks_map[key];
 		if key.len() > 64 || !key.bytes().all(|b| b.is_ascii_uppercase() || b == b'_') {
@@ -336,7 +350,9 @@ impl DiscordApi {
 		)
 	}
 	pub async fn claim_quest(&self, quest: &Quest) -> Result<(), Failure> {
-		if (!quest.status.completed && quest.status.value < f64::from(quest.target)) || quest.status.claimed {
+		if (!quest.status.completed && quest.status.value < f64::from(quest.target))
+			|| quest.status.claimed
+		{
 			return Err(Failure::Protocol);
 		}
 		let body = json!({

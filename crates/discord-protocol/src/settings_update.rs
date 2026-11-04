@@ -8,11 +8,13 @@ const MAX_UPDATE_BYTES: usize = crate::guild_folders::MAX_SETTINGS_RESPONSE;
 const PRELOADED_SETTINGS: u8 = 1;
 const STATUS_FIELD: u64 = 11;
 const FOLDERS_FIELD: u64 = 14;
+const FAVORITES_FIELD: u64 = 15;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Touched {
 	pub status: bool,
 	pub folders: bool,
+	pub favorites: bool,
 }
 
 /// `None` for other settings types. An undecodable preloaded-settings proto refreshes both,
@@ -38,6 +40,7 @@ pub fn decode(bytes: &[u8]) -> Result<Option<Touched>, DecodeError> {
 	let everything = Touched {
 		status: true,
 		folders: true,
+		favorites: true,
 	};
 	let Ok(wire) = STANDARD.decode(update.settings.proto) else {
 		return Ok(Some(everything));
@@ -48,6 +51,7 @@ pub fn decode(bytes: &[u8]) -> Result<Option<Touched>, DecodeError> {
 	Ok(Some(Touched {
 		status: fields.iter().any(|field| field.number == STATUS_FIELD),
 		folders: fields.iter().any(|field| field.number == FOLDERS_FIELD),
+		favorites: fields.iter().any(|field| field.number == FAVORITES_FIELD),
 	}))
 }
 
@@ -76,14 +80,16 @@ mod tests {
 			decode(&update(1, &status)).unwrap(),
 			Some(Touched {
 				status: true,
-				folders: false
+				folders: false,
+				favorites: false,
 			})
 		);
 		assert_eq!(
 			decode(&update(1, &[folders.clone(), status].concat())).unwrap(),
 			Some(Touched {
 				status: true,
-				folders: true
+				folders: true,
+				favorites: false,
 			})
 		);
 		assert_eq!(
@@ -95,7 +101,8 @@ mod tests {
 			decode(&update(1, &[0xff])).unwrap(),
 			Some(Touched {
 				status: true,
-				folders: true
+				folders: true,
+				favorites: true,
 			})
 		);
 		assert!(decode(b"{}").is_err());

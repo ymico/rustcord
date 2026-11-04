@@ -92,6 +92,39 @@ pub fn decode_response(bytes: &[u8]) -> Result<Decoded, DecodeError> {
 				}
 				(settings.folders, unknown) = normalize(entries);
 			}
+			15 => {
+				if let Ok(value) = field.message() {
+					let mut pairs: Vec<(u32, Id)> = Vec::new();
+					for fav in fields(value).unwrap_or_default() {
+						if fav.number == 1 {
+							let mut channel_id = 0u64;
+							let mut position = 0u32;
+							for entry in
+								fields(fav.message().unwrap_or_default()).unwrap_or_default()
+							{
+								if entry.number == 1 && entry.wire_type == 1 {
+									if let Ok(id) = entry.fixed64() {
+										channel_id = id;
+									}
+								} else if entry.number == 2 {
+									for sub in fields(entry.message().unwrap_or_default())
+										.unwrap_or_default()
+									{
+										if sub.number == 3 {
+											position = sub.integer().unwrap_or_default() as u32;
+										}
+									}
+								}
+							}
+							if channel_id != 0 {
+								pairs.push((position, Id(channel_id)));
+							}
+						}
+					}
+					pairs.sort_unstable_by_key(|&(pos, id)| (pos, id));
+					settings.favorite_channels = pairs.into_iter().map(|(_, id)| id).collect();
+				}
+			}
 			_ => {}
 		}
 	}
@@ -381,6 +414,7 @@ mod tests {
 				color: Some(0),
 			}],
 			version: 0,
+			favorite_channels: Vec::new(),
 		};
 		let patch = encode_patch(&current, &settings).unwrap();
 		let mut wire = vec![10, 0]; // Present version message; data version defaults to zero.
@@ -476,5 +510,36 @@ mod tests {
 		assert_eq!(saved.settings, decoded.settings);
 		assert!(saved.unknown.contains_key(&Key::Folder(5)));
 		assert!(saved.unknown.contains_key(&Key::Server(Id(404))));
+	}
+
+	#[test]
+	fn favorites_decoding_extracts_channel_ids() {
+		let mut entry1 = Vec::new();
+		fixed64_field(1, 123456789, &mut entry1);
+		let mut sub1 = Vec::new();
+		write_varint(3 << 3, &mut sub1); // field 3, wire 0 (varint)
+		write_varint(1, &mut sub1); // position 1
+		message(2, &sub1, &mut entry1);
+
+		let mut entry2 = Vec::new();
+		fixed64_field(1, 987654321, &mut entry2);
+		let mut sub2 = Vec::new();
+		write_varint(3 << 3, &mut sub2); // field 3, wire 0 (varint)
+		write_varint(0, &mut sub2); // position 0
+		message(2, &sub2, &mut entry2);
+
+		let mut favs = Vec::new();
+		message(1, &entry1, &mut favs);
+		message(1, &entry2, &mut favs);
+
+		let mut wire = vec![10, 0];
+		message(15, &favs, &mut wire);
+
+		let response = serde_json::json!({"settings": STANDARD.encode(&wire)}).to_string();
+		let decoded = decode_response(response.as_bytes()).unwrap();
+		assert_eq!(
+			decoded.settings.favorite_channels,
+			vec![Id(987654321), Id(123456789)]
+		);
 	}
 }

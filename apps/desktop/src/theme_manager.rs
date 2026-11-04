@@ -43,7 +43,9 @@ impl CustomTheme {
 
 		let mut colors = self.colors.clone();
 		if let Some(accent) = &self.accent {
-			colors.entry("accent".to_string()).or_insert_with(|| accent.clone());
+			colors
+				.entry("accent".to_string())
+				.or_insert_with(|| accent.clone());
 		}
 
 		let palette = extensions::ThemePalette {
@@ -109,8 +111,10 @@ pub fn default_config_path() -> PathBuf {
 
 /// Load theme from a given file path.
 pub fn load_from_file(path: &Path) -> Result<CustomTheme, String> {
-	let data = std::fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
-	serde_json::from_str(&data).map_err(|e| format!("Invalid JSON theme in {}: {}", path.display(), e))
+	let data = std::fs::read_to_string(path)
+		.map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+	serde_json::from_str(&data)
+		.map_err(|e| format!("Invalid JSON theme in {}: {}", path.display(), e))
 }
 
 /// Save theme to a given file path, creating parent directories if needed.
@@ -118,7 +122,8 @@ pub fn save_to_file(theme: &CustomTheme, path: &Path) -> Result<(), String> {
 	if let Some(parent) = path.parent() {
 		let _ = std::fs::create_dir_all(parent);
 	}
-	let json = serde_json::to_string_pretty(theme).map_err(|e| format!("Failed to serialize theme: {}", e))?;
+	let json = serde_json::to_string_pretty(theme)
+		.map_err(|e| format!("Failed to serialize theme: {}", e))?;
 	std::fs::write(path, json).map_err(|e| format!("Failed to write {}: {}", path.display(), e))
 }
 
@@ -233,7 +238,10 @@ pub fn print_theme_list() {
 			let preset = theme.preset.unwrap_or_else(|| "default".into());
 			let accent = theme.accent.unwrap_or_else(|| "default".into());
 			println!("\nActive configuration ({}) :", current_path.display());
-			println!("  Preset: {}, Accent: {}, Radius: {:?}", preset, accent, theme.radius);
+			println!(
+				"  Preset: {}, Accent: {}, Radius: {:?}",
+				preset, accent, theme.radius
+			);
 		}
 	} else {
 		println!("\nActive configuration: default (built-in)");
@@ -241,8 +249,12 @@ pub fn print_theme_list() {
 
 	println!("\nTerminal Commands:");
 	println!("  rustcord theme list                    List all presets and active configuration");
-	println!("  rustcord theme set <preset>            Switch active preset (e.g. rustcord theme set pixeled)");
-	println!("  rustcord theme set --accent <#hex>     Set custom accent color (e.g. rustcord theme set --accent '#00ff66')");
+	println!(
+		"  rustcord theme set <preset>            Switch active preset (e.g. rustcord theme set pixeled)"
+	);
+	println!(
+		"  rustcord theme set --accent <#hex>     Set custom accent color (e.g. rustcord theme set --accent '#00ff66')"
+	);
 	println!("  rustcord theme set <preset> <#hex>     Set preset and accent in one command");
 	println!("  rustcord theme export [path]           Export customizable theme JSON template");
 	println!("  rustcord theme current                 Display currently configured theme");
@@ -301,7 +313,9 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 		}
 		"set" => {
 			if args.len() < 4 {
-				eprintln!("Usage: rustcord theme set <preset> [--accent <#hex>] [--radius <px>] [--square-avatars [true|false]] [--pixel-font [true|false]]");
+				eprintln!(
+					"Usage: rustcord theme set <preset> [--accent <#hex>] [--radius <px>] [--square-avatars [true|false]] [--pixel-font [true|false]]"
+				);
 				eprintln!("       rustcord theme set --accent <#hex>");
 				eprintln!("Run 'rustcord theme list' for available presets.");
 				return Some(1);
@@ -320,7 +334,10 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 							idx += 2;
 							continue;
 						} else {
-							eprintln!("Error: Invalid hex color format '{}'. Example: '#00ff66' or '#7aa2f7'", hex);
+							eprintln!(
+								"Error: Invalid hex color format '{}'. Example: '#00ff66' or '#7aa2f7'",
+								hex
+							);
 							return Some(1);
 						}
 					} else {
@@ -366,7 +383,10 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 						theme.square_avatars = None;
 						theme.pixel_font = None;
 					} else {
-						eprintln!("Error: Unknown theme preset '{}'. Run 'rustcord theme list' to view available presets.", arg);
+						eprintln!(
+							"Error: Unknown theme preset '{}'. Run 'rustcord theme list' to view available presets.",
+							arg
+						);
 						return Some(1);
 					}
 					idx += 1;
@@ -378,7 +398,10 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 				return Some(1);
 			}
 
-			println!("✓ Successfully updated theme settings in {}", config_path.display());
+			println!(
+				"✓ Successfully updated theme settings in {}",
+				config_path.display()
+			);
 			if let Some(p) = &theme.preset {
 				println!("  Preset: {}", p);
 			}
@@ -397,14 +420,23 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 			Some(0)
 		}
 		"export" => {
-			let target_path = args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("theme.json"));
+			let target_path = args
+				.get(3)
+				.map(PathBuf::from)
+				.unwrap_or_else(|| PathBuf::from("theme.json"));
 			let template = template_theme();
 			if let Err(e) = save_to_file(&template, &target_path) {
 				eprintln!("Error exporting theme template: {}", e);
 				return Some(1);
 			}
-			println!("✓ Successfully exported theme template to '{}'", target_path.display());
-			println!("  You can edit this file and load it with: rustcord --theme-file {}", target_path.display());
+			println!(
+				"✓ Successfully exported theme template to '{}'",
+				target_path.display()
+			);
+			println!(
+				"  You can edit this file and load it with: rustcord --theme-file {}",
+				target_path.display()
+			);
 			Some(0)
 		}
 		"help" | "--help" | "-h" => {
@@ -412,7 +444,10 @@ pub fn handle_cli(args: &[String]) -> Option<i32> {
 			Some(0)
 		}
 		other => {
-			eprintln!("Unknown command 'rustcord theme {}'. Run 'rustcord theme list' or 'rustcord theme help'.", other);
+			eprintln!(
+				"Unknown command 'rustcord theme {}'. Run 'rustcord theme list' or 'rustcord theme help'.",
+				other
+			);
 			Some(1)
 		}
 	}

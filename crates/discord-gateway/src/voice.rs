@@ -2239,14 +2239,10 @@ mod tests {
 				.iter()
 				.any(|event| matches!(event, Event::Voice(voice::Event::TakenOver { .. })))
 		);
-		let state_event = events
-			.lock()
-			.unwrap()
-			.iter()
-			.find_map(|e| match e {
-				Event::Voice(voice::Event::State { channel, .. }) => Some(*channel),
-				_ => None,
-			});
+		let state_event = events.lock().unwrap().iter().find_map(|e| match e {
+			Event::Voice(voice::Event::State { channel, .. }) => Some(*channel),
+			_ => None,
+		});
 		assert_eq!(state_event, Some(Some(hidden_channel)));
 
 		// Leave command for hidden channel must successfully emit hang up frame

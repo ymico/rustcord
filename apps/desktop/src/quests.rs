@@ -63,6 +63,7 @@ pub(super) struct Quests {
 	note: String,
 	auto_enroll: bool,
 	auto_claim: bool,
+	pub pill_dismissed: bool,
 }
 impl Default for Quests {
 	fn default() -> Self {
@@ -74,6 +75,7 @@ impl Default for Quests {
 			note: "Click Refresh or Auto Complete All to start.".into(),
 			auto_enroll: true,
 			auto_claim: true,
+			pill_dismissed: false,
 		}
 	}
 }
@@ -128,63 +130,92 @@ impl Quests {
 		if self.job.is_some() {
 			ctx.request_repaint_after(Duration::from_millis(100));
 		}
-		egui::Area::new(egui::Id::unique("rustcord-quests-button"))
-			.anchor(egui::Align2::RIGHT_TOP, [-16.0, 10.0])
-			.order(egui::Order::Foreground)
-			.movable(true)
-			.show(ctx, |ui| {
-				let colors = ui::design::palette_for(ctx);
-				let radius = ui::design::effective_widget_radius() as f32;
-				let running = self.job.is_some();
-				ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-				let border_color = if running { colors.positive } else { colors.border };
-				let frame_resp = egui::Frame::new()
-					.fill(colors.raised)
-					.stroke(egui::Stroke::new(1.0, border_color))
-					.corner_radius(radius as u8)
-					.inner_margin(egui::Margin::symmetric(10, 6))
-					.show(ui, |ui| {
-						ui.horizontal(|ui| {
-							ui.spacing_mut().item_spacing.x = 6.0;
-							let icon_text = if running { "⚡" } else { "🎯" };
-							ui.label(
-								egui::RichText::new(icon_text)
-									.color(if running { colors.positive } else { colors.accent })
-									.size(13.0)
-									.strong(),
-							);
-							ui.label(
-								egui::RichText::new("Quests")
-									.color(colors.text_strong)
-									.size(13.0)
-									.strong(),
-							);
-							if running {
-								egui::Frame::new()
-									.fill(colors.positive.gamma_multiply(0.2))
-									.corner_radius(4)
-									.inner_margin(egui::Margin::symmetric(5, 1))
-									.show(ui, |ui| {
-										ui.label(
-											egui::RichText::new("ACTIVE")
-												.color(colors.positive)
-												.size(10.0)
-												.strong(),
-										);
-									});
-							}
+		let running = self.job.is_some();
+		if !self.pill_dismissed || running {
+			egui::Area::new(egui::Id::unique("rustcord-quests-button"))
+				.anchor(egui::Align2::RIGHT_BOTTOM, [-20.0, -32.0])
+				.order(egui::Order::Foreground)
+				.movable(true)
+				.show(ctx, |ui| {
+					let colors = ui::design::palette_for(ctx);
+					let radius = ui::design::effective_widget_radius() as f32;
+					ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+					let border_color = if running {
+						colors.positive
+					} else {
+						colors.border
+					};
+					let mut hide_clicked = false;
+					let frame_resp = egui::Frame::new()
+						.fill(colors.raised)
+						.stroke(egui::Stroke::new(1.0, border_color))
+						.corner_radius(radius as u8)
+						.inner_margin(egui::Margin::symmetric(10, 6))
+						.show(ui, |ui| {
+							ui.horizontal(|ui| {
+								ui.spacing_mut().item_spacing.x = 6.0;
+								let icon_text = if running { "⚡" } else { "🎯" };
+								ui.label(
+									egui::RichText::new(icon_text)
+										.color(if running {
+											colors.positive
+										} else {
+											colors.accent
+										})
+										.size(13.0)
+										.strong(),
+								);
+								ui.label(
+									egui::RichText::new("Quests")
+										.color(colors.text_strong)
+										.size(13.0)
+										.strong(),
+								);
+								if running {
+									egui::Frame::new()
+										.fill(colors.positive.gamma_multiply(0.2))
+										.corner_radius(4)
+										.inner_margin(egui::Margin::symmetric(5, 1))
+										.show(ui, |ui| {
+											ui.label(
+												egui::RichText::new("ACTIVE")
+													.color(colors.positive)
+													.size(10.0)
+													.strong(),
+											);
+										});
+								}
+								ui.add_space(4.0);
+								let close_btn = ui
+									.add(
+										egui::Label::new(
+											egui::RichText::new("×").color(colors.muted).size(15.0),
+										)
+										.sense(egui::Sense::click()),
+									)
+									.on_hover_text(
+										"Hide Quests badge (open anytime from Home context menu)",
+									);
+								if close_btn.clicked() {
+									hide_clicked = true;
+								}
+							});
 						});
-					});
-				let response = ui.interact(
-					frame_resp.response.rect,
-					ui.scope_id().with("quest-pill-click"),
-					egui::Sense::click(),
-				);
-				if response.clicked() {
-					self.open = !self.open;
-				}
-				response.on_hover_text("Open Discord Quests runner (drag anywhere)");
-			});
+					if hide_clicked {
+						self.pill_dismissed = true;
+					} else {
+						let response = ui.interact(
+							frame_resp.response.rect,
+							ui.scope_id().with("quest-pill-click"),
+							egui::Sense::click(),
+						);
+						if response.clicked() {
+							self.open = !self.open;
+						}
+						response.on_hover_text("Open Discord Quests runner (drag to reposition)");
+					}
+				});
+		}
 		if !self.open {
 			return;
 		}
@@ -218,109 +249,229 @@ impl Quests {
 					.stroke(egui::Stroke::new(1.0, colors.border))
 					.show(ui, |ui| {
 						ui.horizontal(|ui| {
-							let available = !session.offline && session.secret.is_some() && self.job.is_none();
-							if ui.add_enabled(available, egui::Button::new(
-								egui::RichText::new("🔄 Refresh").color(colors.text)
-							).corner_radius(radius as u8)).clicked() {
+							let available =
+								!session.offline && session.secret.is_some() && self.job.is_none();
+							if ui
+								.add_enabled(
+									available,
+									egui::Button::new(
+										egui::RichText::new("🔄 Refresh").color(colors.text),
+									)
+									.corner_radius(radius as u8),
+								)
+								.clicked()
+							{
 								action = Some(Action::Refresh);
 							}
-							if ui.add_enabled(available, egui::Button::new(
-								egui::RichText::new("⚡ Auto Complete All").color(colors.accent_text)
-							).fill(colors.accent).corner_radius(radius as u8)).clicked() {
+							if ui
+								.add_enabled(
+									available,
+									egui::Button::new(
+										egui::RichText::new("⚡ Auto Complete All")
+											.color(colors.accent_text),
+									)
+									.fill(colors.accent)
+									.corner_radius(radius as u8),
+								)
+								.clicked()
+							{
 								action = Some(Action::RunAll);
 							}
-							if ui.add_enabled(self.job.is_some(), egui::Button::new(
-								egui::RichText::new("⏹ Stop").color(egui::Color32::WHITE)
-							).fill(colors.danger).corner_radius(radius as u8)).clicked() {
+							if ui
+								.add_enabled(
+									self.job.is_some(),
+									egui::Button::new(
+										egui::RichText::new("⏹ Stop").color(egui::Color32::WHITE),
+									)
+									.fill(colors.danger)
+									.corner_radius(radius as u8),
+								)
+								.clicked()
+							{
 								stop = true;
 							}
-							ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-								ui.checkbox(&mut self.auto_claim, "Auto claim");
-								ui.checkbox(&mut self.auto_enroll, "Auto enroll");
-							});
+							ui.with_layout(
+								egui::Layout::right_to_left(egui::Align::Center),
+								|ui| {
+									ui.checkbox(&mut self.auto_claim, "Auto claim");
+									ui.checkbox(&mut self.auto_enroll, "Auto enroll");
+								},
+							);
 						});
 						if session.offline || session.secret.is_none() {
-							ui.label(egui::RichText::new("Sign in to load quests.").color(colors.warning));
+							ui.label(
+								egui::RichText::new("Sign in to load quests.")
+									.color(colors.warning),
+							);
 						} else if !self.note.is_empty() {
 							ui.add_space(4.0);
-							ui.label(egui::RichText::new(&self.note).size(12.0).color(colors.muted));
+							ui.label(
+								egui::RichText::new(&self.note)
+									.size(12.0)
+									.color(colors.muted),
+							);
 						}
 					});
 
 				ui.add_space(8.0);
 
-				egui::ScrollArea::vertical().max_height(600.0).show(ui, |ui| {
-					if self.quests.is_empty() {
-						ui.vertical_centered(|ui| {
-							ui.add_space(30.0);
-							ui.label(egui::RichText::new("No quests loaded. Click Refresh to fetch active quests.").color(colors.muted));
-						});
-					}
-					for quest in &self.quests {
-						let progress_frac = (quest.status.value as f32 / quest.target.max(1) as f32).clamp(0.0, 1.0);
-						egui::Frame::new()
-							.fill(colors.raised)
-							.corner_radius(radius as u8)
-							.inner_margin(10)
-							.stroke(egui::Stroke::new(1.0, colors.border))
-							.show(ui, |ui| {
-								ui.horizontal(|ui| {
-									ui.label(egui::RichText::new(&quest.name).font(egui::FontId::new(14.0, ui::design::semibold_family(ctx))).color(colors.text_strong));
-									ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-										let (status_label, status_color) = if quest.status.claimed {
-											("✓ Claimed", colors.positive)
-										} else if quest.status.completed {
-											("✓ Completed", colors.positive)
-										} else if quest.status.enrolled {
-											("Enrolled", colors.accent)
-										} else {
-											("Not enrolled", colors.muted)
-										};
-										ui.label(egui::RichText::new(status_label).color(status_color));
-										ui.label(egui::RichText::new(format!("• {}", quest.task.label())).size(12.0).color(colors.muted));
-									});
-								});
-
-								ui.add_space(4.0);
-								ui.horizontal(|ui| {
-									let bar = egui::ProgressBar::new(progress_frac)
-										.fill(if quest.status.completed { colors.positive } else { colors.accent })
-										.text(format!("{:.0} / {} ({:.0}%)", quest.status.value, quest.target, progress_frac * 100.0));
-									ui.add(bar);
-								});
-
-								ui.add_space(4.0);
-								ui.horizontal(|ui| {
-									if !quest.expires.is_empty() {
-										ui.label(egui::RichText::new(format!("Expires: {}", quest.expires)).size(11.0).color(colors.muted));
-									}
-									let active = self.job.is_some();
-									ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-										if quest.status.completed && !quest.status.claimed {
-											if ui.add_enabled(!active, egui::Button::new(
-												egui::RichText::new("🎁 Claim Reward").color(egui::Color32::WHITE)
-											).fill(colors.positive).corner_radius(radius as u8)).clicked() {
-												action = Some(Action::Claim(quest.id));
-											}
-										} else if !quest.status.completed && quest.task != Task::Unsupported {
-											let allowed = !active && (!quest.task.needs_voice() || session.voice.is_some());
-											if ui.add_enabled(allowed, egui::Button::new(
-												egui::RichText::new("▶ Start").color(colors.accent_text)
-											).fill(colors.accent).corner_radius(radius as u8)).clicked() {
-												action = Some(Action::Run(quest.id));
-											}
-										}
-										if quest.task == Task::Unsupported {
-											ui.label(egui::RichText::new("Console-only quest").size(11.0).color(colors.muted));
-										} else if quest.task.needs_voice() && session.voice.is_none() {
-											ui.label(egui::RichText::new("Join voice channel first").size(11.0).color(colors.warning));
-										}
-									});
-								});
+				egui::ScrollArea::vertical()
+					.max_height(600.0)
+					.show(ui, |ui| {
+						if self.quests.is_empty() {
+							ui.vertical_centered(|ui| {
+								ui.add_space(30.0);
+								ui.label(
+									egui::RichText::new(
+										"No quests loaded. Click Refresh to fetch active quests.",
+									)
+									.color(colors.muted),
+								);
 							});
-						ui.add_space(6.0);
-					}
-				});
+						}
+						for quest in &self.quests {
+							let progress_frac = (quest.status.value as f32
+								/ quest.target.max(1) as f32)
+								.clamp(0.0, 1.0);
+							egui::Frame::new()
+								.fill(colors.raised)
+								.corner_radius(radius as u8)
+								.inner_margin(10)
+								.stroke(egui::Stroke::new(1.0, colors.border))
+								.show(ui, |ui| {
+									ui.horizontal(|ui| {
+										ui.label(
+											egui::RichText::new(&quest.name)
+												.font(egui::FontId::new(
+													14.0,
+													ui::design::semibold_family(ctx),
+												))
+												.color(colors.text_strong),
+										);
+										ui.with_layout(
+											egui::Layout::right_to_left(egui::Align::Center),
+											|ui| {
+												let (status_label, status_color) =
+													if quest.status.claimed {
+														("✓ Claimed", colors.positive)
+													} else if quest.status.completed {
+														("✓ Completed", colors.positive)
+													} else if quest.status.enrolled {
+														("Enrolled", colors.accent)
+													} else {
+														("Not enrolled", colors.muted)
+													};
+												ui.label(
+													egui::RichText::new(status_label)
+														.color(status_color),
+												);
+												ui.label(
+													egui::RichText::new(format!(
+														"• {}",
+														quest.task.label()
+													))
+													.size(12.0)
+													.color(colors.muted),
+												);
+											},
+										);
+									});
+
+									ui.add_space(4.0);
+									ui.horizontal(|ui| {
+										let bar = egui::ProgressBar::new(progress_frac)
+											.fill(if quest.status.completed {
+												colors.positive
+											} else {
+												colors.accent
+											})
+											.text(format!(
+												"{:.0} / {} ({:.0}%)",
+												quest.status.value,
+												quest.target,
+												progress_frac * 100.0
+											));
+										ui.add(bar);
+									});
+
+									ui.add_space(4.0);
+									ui.horizontal(|ui| {
+										if !quest.expires.is_empty() {
+											ui.label(
+												egui::RichText::new(format!(
+													"Expires: {}",
+													quest.expires
+												))
+												.size(11.0)
+												.color(colors.muted),
+											);
+										}
+										let active = self.job.is_some();
+										ui.with_layout(
+											egui::Layout::right_to_left(egui::Align::Center),
+											|ui| {
+												if quest.status.completed && !quest.status.claimed {
+													if ui
+														.add_enabled(
+															!active,
+															egui::Button::new(
+																egui::RichText::new(
+																	"🎁 Claim Reward",
+																)
+																.color(egui::Color32::WHITE),
+															)
+															.fill(colors.positive)
+															.corner_radius(radius as u8),
+														)
+														.clicked()
+													{
+														action = Some(Action::Claim(quest.id));
+													}
+												} else if !quest.status.completed
+													&& quest.task != Task::Unsupported
+												{
+													let allowed = !active
+														&& (!quest.task.needs_voice()
+															|| session.voice.is_some());
+													if ui
+														.add_enabled(
+															allowed,
+															egui::Button::new(
+																egui::RichText::new("▶ Start")
+																	.color(colors.accent_text),
+															)
+															.fill(colors.accent)
+															.corner_radius(radius as u8),
+														)
+														.clicked()
+													{
+														action = Some(Action::Run(quest.id));
+													}
+												}
+												if quest.task == Task::Unsupported {
+													ui.label(
+														egui::RichText::new("Console-only quest")
+															.size(11.0)
+															.color(colors.muted),
+													);
+												} else if quest.task.needs_voice()
+													&& session.voice.is_none()
+												{
+													ui.label(
+														egui::RichText::new(
+															"Join voice channel first",
+														)
+														.size(11.0)
+														.color(colors.warning),
+													);
+												}
+											},
+										);
+									});
+								});
+							ui.add_space(6.0);
+						}
+					});
 			});
 		self.open = open;
 		if !open && self.job.is_some() {
@@ -355,6 +506,7 @@ impl Quests {
 		let enroll = self.auto_enroll;
 		let claim = self.auto_claim;
 		let voice = session.voice;
+		self.pill_dismissed = false;
 		self.note = "Loading server state…".into();
 		let task = runtime.spawn(async move {
 			let result = tokio::time::timeout(
@@ -428,23 +580,34 @@ async fn run(
 ) -> Result<String, String> {
 	let mut list = api.quests().await.map_err(|e| e.label().to_owned())?;
 	send_update(send, ctx, &list, "Server state loaded.".into()).await?;
-	let flags = QuestFlags { auto_enroll, auto_claim };
+	let flags = QuestFlags {
+		auto_enroll,
+		auto_claim,
+	};
 	match action {
-		Action::Refresh => Ok("Server state loaded. Select a quest and click Start, or click Auto Complete All.".into()),
-		Action::Run(id) => {
-			run_single_quest(api, id, voice, flags, send, ctx, &mut list).await
-		}
+		Action::Refresh => Ok(
+			"Server state loaded. Select a quest and click Start, or click Auto Complete All."
+				.into(),
+		),
+		Action::Run(id) => run_single_quest(api, id, voice, flags, send, ctx, &mut list).await,
 		Action::RunAll => {
 			let uncompleted: Vec<Id> = list
 				.iter()
-				.filter(|q| (!q.status.completed || !q.status.claimed) && q.task != Task::Unsupported && (!q.task.needs_voice() || voice.is_some()))
+				.filter(|q| {
+					(!q.status.completed || !q.status.claimed)
+						&& q.task != Task::Unsupported
+						&& (!q.task.needs_voice() || voice.is_some())
+				})
 				.map(|q| q.id)
 				.collect();
 			if uncompleted.is_empty() {
 				return Ok("All eligible quests are already completed and claimed.".into());
 			}
 			let total = uncompleted.len();
-			let all_flags = QuestFlags { auto_enroll: true, auto_claim: true };
+			let all_flags = QuestFlags {
+				auto_enroll: true,
+				auto_claim: true,
+			};
 			for (idx, qid) in uncompleted.into_iter().enumerate() {
 				let _ = send_update(
 					send,
@@ -453,7 +616,9 @@ async fn run(
 					format!("Running quest {} of {}...", idx + 1, total),
 				)
 				.await;
-				if let Err(err) = run_single_quest(api, qid, voice, all_flags, send, ctx, &mut list).await {
+				if let Err(err) =
+					run_single_quest(api, qid, voice, all_flags, send, ctx, &mut list).await
+				{
 					let _ = send_update(
 						send,
 						ctx,
@@ -515,18 +680,14 @@ async fn run_single_quest(
 		return Ok(format!("Quest {} was already completed.", quest.name));
 	}
 	if quest.task == Task::Unsupported {
-		return Err(
-			"This task is console-only and not supported on desktop; skipping.".into(),
-		);
+		return Err("This task is console-only and not supported on desktop; skipping.".into());
 	}
 	if quest.task.needs_voice() && voice.is_none() {
 		return Err("Join a voice channel before starting this activity task.".into());
 	}
 	if !quest.status.enrolled && !quest.status.completed {
 		if !flags.auto_enroll {
-			return Err(
-				"Enrollment is required. Enable Auto enroll or enroll in Discord.".into(),
-			);
+			return Err("Enrollment is required. Enable Auto enroll or enroll in Discord.".into());
 		}
 		api.enroll_quest(&quest)
 			.await

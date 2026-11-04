@@ -102,6 +102,18 @@ impl<'a> Roster<'a> {
 				rank.entry(*id).or_insert((index, position));
 			}
 		}
+		if let Some(folders) = &state.guild_folders {
+			for (fav_pos, id) in folders.favorite_channels.iter().enumerate() {
+				if let Some(channel) = state.channel(*id) {
+					if (scope == Scope::Home && channel.guild.is_none())
+						|| (scope.guild().is_some() && channel.guild == scope.guild())
+					{
+						let position = prefs.ids(rosters[0].0).len() + fav_pos;
+						rank.entry(*id).or_insert((0, position));
+					}
+				}
+			}
+		}
 		let mut buckets: Vec<Vec<(usize, &Channel)>> = vec![Vec::new(); rosters.len()];
 		for channel in &state.channels {
 			if let Some(&(index, position)) = rank.get(&channel.id)

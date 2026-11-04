@@ -402,6 +402,7 @@ mod tests {
 		ui.transparency = defaults.transparency;
 		ui.blur = defaults.blur;
 		ui.preload_on_hover = defaults.preload_on_hover;
+		ui.plaintext_login = defaults.plaintext_login;
 		settings.observe(&ui);
 		assert!(
 			!settings.state.touched,

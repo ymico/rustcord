@@ -1128,7 +1128,11 @@ impl DiscordApi {
 					result,
 				})
 			}
-			Command::MarkAllRead { request, channels, guilds } => {
+			Command::MarkAllRead {
+				request,
+				channels,
+				guilds,
+			} => {
 				let (acked, result) = self.mark_all_read(&channels).await;
 				for &guild in &guilds {
 					let _ = self.mark_guild_read(guild).await;

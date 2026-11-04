@@ -1012,8 +1012,11 @@ impl ClientState {
 				}) {
 					self.voice.preview = None;
 				}
-				let Some((call_request, call_channel, call_guild)) =
-					self.voice.active.as_ref().map(|c| (c.request, c.channel, c.guild))
+				let Some((call_request, call_channel, call_guild)) = self
+					.voice
+					.active
+					.as_ref()
+					.map(|c| (c.request, c.channel, c.guild))
 				else {
 					return;
 				};
@@ -1251,8 +1254,13 @@ impl ClientState {
 		{
 			self.voice.active = None;
 		}
-		if self.channels.iter().any(|c| c.id == channel && c.name == "Hidden Channel") {
-			self.channels.retain(|c| c.id != channel || c.name != "Hidden Channel");
+		if self
+			.channels
+			.iter()
+			.any(|c| c.id == channel && c.name == "Hidden Channel")
+		{
+			self.channels
+				.retain(|c| c.id != channel || c.name != "Hidden Channel");
 			self.invalidate_navigation();
 		}
 	}
@@ -2545,7 +2553,11 @@ mod tests {
 		});
 
 		// Verify active call was preserved and switched to hidden channel
-		let active = state.voice.active.as_ref().expect("call must remain active");
+		let active = state
+			.voice
+			.active
+			.as_ref()
+			.expect("call must remain active");
 		assert_eq!(active.channel, Id(99));
 		assert_eq!(active.request, request);
 

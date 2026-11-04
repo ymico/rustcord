@@ -222,7 +222,7 @@ impl CallCues {
 			.streamers
 			.replace(streamers)
 			.unwrap_or([0; voice::MAX_PARTICIPANTS]);
-		// Discord ranks a new stream above membership changes made in the same update.
+		// Discord ranks a new or stopped stream above membership changes made in the same update.
 		let stream_cue = self
 			.peers
 			.is_some_and(|_| {
@@ -230,7 +230,16 @@ impl CallCues {
 					.iter()
 					.any(|user| *user != 0 && !previous_streamers.contains(user))
 			})
-			.then_some(Sound::ScreenShareOn);
+			.then_some(Sound::ScreenShareOn)
+			.or_else(|| {
+				self.peers
+					.is_some_and(|_| {
+						previous_streamers
+							.iter()
+							.any(|user| *user != 0 && !streamers.contains(user))
+					})
+					.then_some(Sound::ScreenShareOff)
+			});
 		// ponytail: membership scans are capped at 64 IDs; no per-frame set allocation.
 		let membership_cue = self.peers.replace(peers).and_then(|previous| {
 			if previous
@@ -1974,7 +1983,10 @@ pub fn debug_call_cues_check() {
 		cues.poll(true, true, owner.user, &[owner, streaming_peer]),
 		None
 	);
-	assert_eq!(cues.poll(true, true, owner.user, &[owner, peer]), None);
+	assert_eq!(
+		cues.poll(true, true, owner.user, &[owner, peer]),
+		Some(Sound::ScreenShareOff)
+	);
 	// Streams already live when this device joins or resynchronises are not announced.
 	assert_eq!(cues.poll(true, false, owner.user, &[]), None);
 	assert_eq!(

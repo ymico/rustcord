@@ -58,10 +58,10 @@ pub fn show(ctx: &egui::Context) {
 					sample
 						.cpu
 						.store(process.cpu_usage().max(0.0).to_bits(), Ordering::Relaxed);
-					sample.cpus.store(system.cpus().len().max(1) as u32, Ordering::Relaxed);
+					sample
+						.cpus
+						.store(system.cpus().len().max(1) as u32, Ordering::Relaxed);
 					sample.ready.store(true, Ordering::Release);
-
-
 				}
 			})
 			.is_err()

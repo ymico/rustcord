@@ -53,7 +53,6 @@ mod registered_games;
 mod rendering_demo;
 #[allow(dead_code)]
 mod resources;
-mod theme_manager;
 mod screen;
 #[cfg(feature = "demo")]
 mod server_settings_demo;
@@ -63,6 +62,7 @@ mod slash_demo;
 mod spotify;
 mod startup;
 mod sticker_upload;
+mod theme_manager;
 mod toggle_setting;
 mod tray_window;
 mod updater;
@@ -3710,13 +3710,13 @@ impl Desktop {
 						result: Ok(()),
 					})
 				}
-				Command::MarkAllRead { request, channels, .. } => {
-					Event::ReadState(client_core::read_state::Event::AllAck {
-						request,
-						acked: channels.len(),
-						result: Ok(()),
-					})
-				}
+				Command::MarkAllRead {
+					request, channels, ..
+				} => Event::ReadState(client_core::read_state::Event::AllAck {
+					request,
+					acked: channels.len(),
+					result: Ok(()),
+				}),
 				Command::Polls(request) => {
 					polls_demo::respond(&self.state, request, &mut self.synthetic_id)
 				}
@@ -6724,6 +6724,9 @@ impl eframe::App for Desktop {
 					guild: call.guild,
 				})
 		});
+		if self.messaging.take_quests_requested() {
+			self.quests.open = true;
+		}
 		self.quests.show(
 			&ctx,
 			&self.runtime,

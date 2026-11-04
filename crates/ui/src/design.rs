@@ -175,9 +175,12 @@ impl Variant {
 	}
 	pub fn from_key(key: &str) -> Option<Variant> {
 		let lower = key.to_ascii_lowercase();
-		Variant::ALL
-			.into_iter()
-			.find(|v| v.key() == lower || v.legacy_key() == lower || v.label().to_ascii_lowercase() == lower || (lower == "rustcord" && *v == Variant::Standard))
+		Variant::ALL.into_iter().find(|v| {
+			v.key() == lower
+				|| v.legacy_key() == lower
+				|| v.label().to_ascii_lowercase() == lower
+				|| (lower == "rustcord" && *v == Variant::Standard)
+		})
 	}
 	/// Default widget and window corner radius (widget_radius, window_radius) in logical pixels.
 	pub fn default_radius(self) -> (u8, u8) {
@@ -264,11 +267,7 @@ pub fn avatar_radius(size: f32) -> u8 {
 	} else {
 		mode == 1
 	};
-	if is_square {
-		0
-	} else {
-		(size * 0.5) as u8
-	}
+	if is_square { 0 } else { (size * 0.5) as u8 }
 }
 
 pub fn is_pixel_font() -> bool {
@@ -514,7 +513,7 @@ pub fn builtin_colors(dark: bool, variant: Variant) -> Palette {
 			p.mention_bg = Color32::from_rgba_premultiplied(168, 85, 247, 38);
 			p.mention_text = rgb(0xa855f7);
 			p
-		},
+		}
 		Variant::Slate => dark_common(
 			rgb(0x1b1f2a),
 			rgb(0x262b38),
@@ -1421,7 +1420,8 @@ pub fn apply(ctx: &egui::Context) {
 		style.visuals.window_fill = p.raised.to_opaque();
 		let def_widget_radius = effective_widget_radius();
 		let def_window_radius = effective_window_radius();
-		style.visuals.window_corner_radius = metrics.window_radius.unwrap_or(def_window_radius).into();
+		style.visuals.window_corner_radius =
+			metrics.window_radius.unwrap_or(def_window_radius).into();
 		style.visuals.menu_corner_radius = metrics.menu_radius.unwrap_or(def_window_radius).into();
 		style.visuals.window_stroke = Stroke::new(1.0, p.border);
 		style.visuals.window_shadow = egui::epaint::Shadow {

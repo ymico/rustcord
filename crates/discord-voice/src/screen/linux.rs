@@ -34,9 +34,13 @@ pub(super) fn timestamp_portal_frames(source: &gst::Element) -> Result<(), &'sta
 			let running_time = weak
 				.upgrade()
 				.and_then(|source| source.current_running_time())
-				.unwrap_or_else(|| gst::ClockTime::from_nseconds(start.elapsed().as_nanos() as u64));
+				.unwrap_or_else(
+					|| gst::ClockTime::from_nseconds(start.elapsed().as_nanos() as u64),
+				);
 			let prev = last_pts.load(Ordering::Relaxed);
-			let pts = running_time.max(gst::ClockTime::from_nseconds(prev.saturating_add(1_000_000)));
+			let pts = running_time.max(gst::ClockTime::from_nseconds(
+				prev.saturating_add(1_000_000),
+			));
 			last_pts.store(pts.nseconds(), Ordering::Relaxed);
 			if let Some(gst::PadProbeData::Buffer(buffer)) = &mut info.data {
 				let buffer = buffer.make_mut();

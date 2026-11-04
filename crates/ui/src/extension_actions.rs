@@ -208,8 +208,14 @@ impl MessagingUi {
 						})
 					})
 					.collect::<Result<Vec<_>, String>>()?;
-				let command =
-					state.save_guild_folders(model::guild_folders::Settings { folders, version });
+				let command = state.save_guild_folders(model::guild_folders::Settings {
+					folders,
+					version,
+					favorite_channels: state
+						.guild_folders
+						.as_ref()
+						.map_or_else(Vec::new, |g| g.favorite_channels.clone()),
+				});
 				if let Some(command) = command {
 					Some(command)
 				} else if state.folders_error.is_none() && !state.folders_pending {

@@ -475,7 +475,12 @@ impl Screen {
 				}
 			}
 		} else {
-			ui.screen.preview = None;
+			if ui.screen.preview.take().is_some() {
+				let cue = model::notification_preferences::Sound::ScreenShareOff;
+				if ui.notification_options.allows(cue) {
+					ui.notification_preview = Some(cue);
+				}
+			}
 		}
 
 		if let Some(closing) = &mut self.closing {

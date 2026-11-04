@@ -722,6 +722,11 @@ impl MessagingUi {
 		})
 	}
 
+	/// Whether opening Quests was requested from the Home context menu or shortcuts.
+	pub fn take_quests_requested(&mut self) -> bool {
+		std::mem::take(&mut self.server_menu.quests_requested)
+	}
+
 	/// Pending profile picture selection: (generation, own user, editor revision).
 	pub fn take_profile_picture_request(&mut self) -> Option<(u64, Id, u64)> {
 		self.settings.editor.avatar_request.take()
@@ -1218,6 +1223,7 @@ impl MessagingUi {
 		if !self.channel_preferences_loaded {
 			return;
 		}
+		self.sync_account_favorites(state);
 		if std::mem::take(&mut self.last_channels_seed) {
 			state.seed_viewed_channels(&self.channel_preferences.last_channels);
 		}
@@ -1233,6 +1239,40 @@ impl MessagingUi {
 		{
 			self.channel_preferences_changed |=
 				self.channel_preferences.remember_channel(guild, channel.id);
+		}
+	}
+
+	/// Synchronize Discord account pinned DMs and favorite channels into local preferences.
+	pub fn sync_account_favorites(&mut self, state: &State) {
+		if !self.channel_preferences_loaded {
+			return;
+		}
+		let Some(folders) = &state.guild_folders else {
+			return;
+		};
+		let mut changed = false;
+		for id in &folders.favorite_channels {
+			if let Some(channel) = state.channel(*id) {
+				if channel.guild.is_none() {
+					if !self.channel_preferences.pinned.contains(id)
+						&& self.channel_preferences.pinned.len() + 1
+							<= model::ChannelPreferences::MAX_ENTRIES
+					{
+						self.channel_preferences.pinned.push(*id);
+						changed = true;
+					}
+				} else if !self.channel_preferences.favorites.contains(id)
+					&& self.channel_preferences.favorites.len() + 1
+						<= model::ChannelPreferences::MAX_ENTRIES
+				{
+					self.channel_preferences.favorites.push(*id);
+					changed = true;
+				}
+			}
+		}
+		if changed {
+			self.channel_preferences_changed = true;
+			self.channel_cache.invalidate();
 		}
 	}
 	pub fn has_edit(&self) -> bool {
@@ -4187,6 +4227,7 @@ impl MessagingUi {
 			profiles::Action::ClearStatus => self.clear_custom_status(),
 			profiles::Action::Close => {
 				self.profile.close_unless_armed(ctx);
+				*self.members_preference(state) = false;
 			}
 			profiles::Action::SaveBadges(settings) => {
 				if let Some(command) = state.save_badge_settings(settings) {

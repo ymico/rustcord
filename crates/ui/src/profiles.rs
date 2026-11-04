@@ -1175,7 +1175,10 @@ pub(crate) fn paint_status(
 		painter.rect_filled(dot_rect, 0.0, color);
 		match status {
 			"idle" => {
-				let bite_rect = Rect::from_center_size(center - Vec2::splat(radius * 0.45), Vec2::splat(radius * 1.44));
+				let bite_rect = Rect::from_center_size(
+					center - Vec2::splat(radius * 0.45),
+					Vec2::splat(radius * 1.44),
+				);
 				painter.rect_filled(bite_rect, 0.0, ring);
 			}
 			"dnd" => {
@@ -1187,7 +1190,11 @@ pub(crate) fn paint_status(
 			}
 			"online" => {}
 			_ => {
-				painter.rect_filled(Rect::from_center_size(center, Vec2::splat(radius)), 0.0, ring);
+				painter.rect_filled(
+					Rect::from_center_size(center, Vec2::splat(radius)),
+					0.0,
+					ring,
+				);
 			}
 		}
 		return;
@@ -3269,11 +3276,8 @@ pub fn show_with_session(
 			}
 		}
 		if crate::design::avatar_radius(avatar_size) == 0 {
-			ui.painter().rect_filled(
-				avatar_rect.expand(AVATAR_RING),
-				0.0,
-				theme.card,
-			);
+			ui.painter()
+				.rect_filled(avatar_rect.expand(AVATAR_RING), 0.0, theme.card);
 		} else {
 			ui.painter().circle_filled(
 				avatar_rect.center(),
@@ -4365,10 +4369,10 @@ pub(crate) fn docked(
 					}
 					let circles = Rect::from_min_size(
 						pos2(
-							banner.right() - PAD - 2.0 * CIRCLE - 8.0,
+							banner.right() - PAD - 3.0 * CIRCLE - 16.0,
 							banner.top() + PAD,
 						),
-						vec2(2.0 * CIRCLE + 8.0, CIRCLE),
+						vec2(3.0 * CIRCLE + 16.0, CIRCLE),
 					);
 					ui.scope_builder(
 						UiBuilder::new()
@@ -4376,6 +4380,11 @@ pub(crate) fn docked(
 							.layout(egui::Layout::right_to_left(egui::Align::Center)),
 						|ui| {
 							ui.spacing_mut().item_spacing.x = 8.0;
+							let close =
+								header_circle(ui, Icon::Close, "settings-close-escape", true);
+							if close.clicked() {
+								action = Some(Action::Close);
+							}
 							let more = header_circle(ui, Icon::More, "profiles-show-more", true);
 							egui::Popup::menu(&more)
 								.id(egui::Id::unique(("docked-profile-more", user.id)))
@@ -4417,10 +4426,14 @@ pub(crate) fn docked(
 						}));
 					}
 					if crate::design::avatar_radius(AVATAR) == 0 {
-						ui.painter().rect_filled(avatar.expand(AVATAR_RING), 0.0, ring);
-					} else {
 						ui.painter()
-							.circle_filled(avatar.center(), AVATAR * 0.5 + AVATAR_RING, ring);
+							.rect_filled(avatar.expand(AVATAR_RING), 0.0, ring);
+					} else {
+						ui.painter().circle_filled(
+							avatar.center(),
+							AVATAR * 0.5 + AVATAR_RING,
+							ring,
+						);
 					}
 					ui.scope_builder(UiBuilder::new().max_rect(avatar), |ui| {
 						let response = avatars.with_avatar_animation(true, |avatars| match data {

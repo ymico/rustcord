@@ -24,6 +24,7 @@ pub(super) struct ServerMenu {
 	pub mark_read_requested: Option<Id>,
 	pub mark_all_read_requested: bool,
 	pub mark_read_folder_requested: Option<Vec<Id>>,
+	pub quests_requested: bool,
 	dialog: Option<Dialog>,
 	generation: u64,
 	invite: InviteDialog,
@@ -88,6 +89,22 @@ impl ServerMenu {
 			self.mark_read_folder_requested = Some(guilds.to_vec());
 			ui.close();
 		}
+	}
+	/// Open Quests modal from the app menu or context menu.
+	pub fn quests_item(&mut self, ui: &mut egui::Ui) -> bool {
+		if menu_row(
+			ui,
+			icons::Icon::GameController,
+			"Quests",
+			design::palette(ui).text,
+		)
+		.clicked()
+		{
+			self.quests_requested = true;
+			ui.close();
+			return true;
+		}
+		false
 	}
 	/// Every server and direct message, from the home tile.
 	pub fn all_read_item(&mut self, ui: &mut egui::Ui, state: &State) {

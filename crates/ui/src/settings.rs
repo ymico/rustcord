@@ -774,7 +774,8 @@ impl MessagingUi {
 				);
 				let r = design::avatar_radius(80.0);
 				if r == 0 {
-					ui.painter().rect_filled(avatar.expand(4.0), 0.0, colors.raised);
+					ui.painter()
+						.rect_filled(avatar.expand(4.0), 0.0, colors.raised);
 				} else {
 					ui.painter()
 						.circle_filled(avatar.center(), 44.0, colors.raised);
@@ -1235,71 +1236,93 @@ impl MessagingUi {
 	}
 
 	fn theme_tuning_settings(&mut self, ui: &mut egui::Ui) {
-		design::group(
-			ui,
-			"Geometry & Pixel Customization",
-			|ui| {
-				// Corner Radius Slider & Quick Presets
-				let mut current_radius = design::effective_widget_radius();
-				ui.horizontal(|ui| {
-					ui.label("Corner Radius:");
-					if ui.add(egui::Slider::new(&mut current_radius, 0..=16).suffix(" px")).changed() {
-						design::set_corner_radius(Some(current_radius));
-						design::apply(ui.ctx());
-						self.theme_customization_changed = true;
-					}
-					ui.add_space(8.0);
-					if ui.button("0px (Pixel)").on_hover_text("Sharp pixel corners (0px)").clicked() {
-						design::set_corner_radius(Some(0));
-						design::apply(ui.ctx());
-						self.theme_customization_changed = true;
-					}
-					if ui.button("6px (Default)").on_hover_text("Standard Discord radius (6px)").clicked() {
-						design::set_corner_radius(Some(6));
-						design::apply(ui.ctx());
-						self.theme_customization_changed = true;
-					}
-					if ui.button("12px (Smooth)").on_hover_text("Extra smooth rounded radius (12px)").clicked() {
-						design::set_corner_radius(Some(12));
-						design::apply(ui.ctx());
-						self.theme_customization_changed = true;
-					}
-				});
-
-				design::card_divider(ui);
-
-				// Pixel Mode Toggles
-				ui.horizontal(|ui| {
-					let mut square = design::square_avatars().unwrap_or_else(|| {
-						design::effective_widget_radius() == 0 || design::variant() == design::Variant::Pixeled
-					});
-					if ui.checkbox(&mut square, "Square avatars & server icons").changed() {
-						design::set_square_avatars(Some(square));
-						ui.ctx().request_repaint();
-						self.theme_customization_changed = true;
-					}
-
-					ui.add_space(16.0);
-
-					let mut pixel_font = design::is_pixel_font();
-					if ui.checkbox(&mut pixel_font, "Retro pixel / monospace font").changed() {
-						design::set_pixel_font(Some(pixel_font));
-						design::apply(ui.ctx());
-						self.theme_customization_changed = true;
-					}
-				});
-
-				if design::corner_radius().is_some() || design::square_avatars().is_some() || design::pixel_font_override().is_some() || self.primary_color.is_some() {
-					design::card_divider(ui);
-					if ui.button("↺ Reset to theme preset defaults").clicked() {
-						design::reset_overrides();
-						self.primary_color = None;
-						design::apply(ui.ctx());
-						self.theme_customization_changed = true;
-					}
+		design::group(ui, "Geometry & Pixel Customization", |ui| {
+			// Corner Radius Slider & Quick Presets
+			let mut current_radius = design::effective_widget_radius();
+			ui.horizontal(|ui| {
+				ui.label("Corner Radius:");
+				if ui
+					.add(egui::Slider::new(&mut current_radius, 0..=16).suffix(" px"))
+					.changed()
+				{
+					design::set_corner_radius(Some(current_radius));
+					design::apply(ui.ctx());
+					self.theme_customization_changed = true;
 				}
-			},
-		);
+				ui.add_space(8.0);
+				if ui
+					.button("0px (Pixel)")
+					.on_hover_text("Sharp pixel corners (0px)")
+					.clicked()
+				{
+					design::set_corner_radius(Some(0));
+					design::apply(ui.ctx());
+					self.theme_customization_changed = true;
+				}
+				if ui
+					.button("6px (Default)")
+					.on_hover_text("Standard Discord radius (6px)")
+					.clicked()
+				{
+					design::set_corner_radius(Some(6));
+					design::apply(ui.ctx());
+					self.theme_customization_changed = true;
+				}
+				if ui
+					.button("12px (Smooth)")
+					.on_hover_text("Extra smooth rounded radius (12px)")
+					.clicked()
+				{
+					design::set_corner_radius(Some(12));
+					design::apply(ui.ctx());
+					self.theme_customization_changed = true;
+				}
+			});
+
+			design::card_divider(ui);
+
+			// Pixel Mode Toggles
+			ui.horizontal(|ui| {
+				let mut square = design::square_avatars().unwrap_or_else(|| {
+					design::effective_widget_radius() == 0
+						|| design::variant() == design::Variant::Pixeled
+				});
+				if ui
+					.checkbox(&mut square, "Square avatars & server icons")
+					.changed()
+				{
+					design::set_square_avatars(Some(square));
+					ui.ctx().request_repaint();
+					self.theme_customization_changed = true;
+				}
+
+				ui.add_space(16.0);
+
+				let mut pixel_font = design::is_pixel_font();
+				if ui
+					.checkbox(&mut pixel_font, "Retro pixel / monospace font")
+					.changed()
+				{
+					design::set_pixel_font(Some(pixel_font));
+					design::apply(ui.ctx());
+					self.theme_customization_changed = true;
+				}
+			});
+
+			if design::corner_radius().is_some()
+				|| design::square_avatars().is_some()
+				|| design::pixel_font_override().is_some()
+				|| self.primary_color.is_some()
+			{
+				design::card_divider(ui);
+				if ui.button("↺ Reset to theme preset defaults").clicked() {
+					design::reset_overrides();
+					self.primary_color = None;
+					design::apply(ui.ctx());
+					self.theme_customization_changed = true;
+				}
+			}
+		});
 	}
 
 	fn activity_settings(&mut self, ui: &mut egui::Ui, state: &State) {
