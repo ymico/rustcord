@@ -280,8 +280,6 @@ dependencies = [
 [[package]]
 name = "apple-metal"
 version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d9d69a493f77b6e46d0cfa3ceee063d415109472eddec46bf1211d5faa7871f"
 dependencies = [
  "doom-fish-utils",
  "libc",

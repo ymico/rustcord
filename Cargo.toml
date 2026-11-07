@@ -220,6 +220,9 @@ davey = { path = "vendor/davey" }
 # Linux login uses GTK4/WebKit6; exclude obsolete GTK3 declarations from the lockfile.
 wry = { path = "vendor/wry" }
 
+# Fix macOS Metal SDK compiler error in swift-bridge; see vendor/apple-metal/SEREIN-PATCH.md.
+apple-metal = { path = "vendor/apple-metal" }
+
 [profile.dev.package.sonora-ns]
 opt-level = 3
 
