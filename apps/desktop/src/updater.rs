@@ -18,7 +18,7 @@ mod delta;
 #[path = "updater_install.rs"]
 mod install;
 
-const RELEASES: &str = "https://api.github.com/repos/surf1k/rustcord/releases";
+const RELEASES: &str = "https://api.github.com/repos/ymico/rustcord/releases";
 const MAX_METADATA: usize = 2 * 1024 * 1024;
 const MAX_DOWNLOAD: u64 = 512 * 1024 * 1024;
 const CHECK_INTERVAL: Duration = Duration::from_secs(60 * 60);
@@ -652,7 +652,7 @@ fn release_asset(release: &Release, name: &str) -> Result<Asset, String> {
 		return Err("The release asset metadata is invalid.".into());
 	}
 	let expected = format!(
-		"https://github.com/surf1k/rustcord/releases/download/{}/{name}",
+		"https://github.com/ymico/rustcord/releases/download/{}/{name}",
 		release.tag_name
 	);
 	if asset.browser_download_url != expected {
@@ -978,7 +978,7 @@ mod release_origin_tests {
 			assets: vec![Asset {
 				name: name.into(),
 				browser_download_url: format!(
-					"https://github.com/surf1k/rustcord/releases/download/v1.2.3/{name}"
+					"https://github.com/ymico/rustcord/releases/download/v1.2.3/{name}"
 				),
 				size: 256,
 			}],
@@ -990,7 +990,7 @@ mod release_origin_tests {
 			format!("https://github.com/ViceVerse-cz/Serein/releases/download/v1.2.3/{name}");
 		assert!(release_asset(&release, name).is_err());
 		release.assets[0].browser_download_url =
-			format!("https://github.com/surf1k/rustcord/releases/download/v1.2.3/{name}");
+			format!("https://github.com/ymico/rustcord/releases/download/v1.2.3/{name}");
 		release.assets.push(release.assets[0].clone());
 		assert!(release_asset(&release, name).is_err());
 	}

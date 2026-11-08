@@ -49,6 +49,9 @@ impl Event {
 			}
 	}
 }
+/// (channel, previous_read_message, previous_epoch, target_latest_message)
+type BulkAckChannel = (Id, Option<Id>, u64, Id);
+
 enum Pending {
 	Channel {
 		channel: Id,
@@ -66,8 +69,7 @@ enum Pending {
 	All {
 		request: u64,
 		/// In request order; a forgotten channel leaves `None` so `acked` still lines up.
-		/// (channel, previous_read_message, previous_epoch, target_latest_message)
-		channels: Vec<Option<(Id, Option<Id>, u64, Id)>>,
+		channels: Vec<Option<BulkAckChannel>>,
 		scope: Scope,
 		/// More unread channels remained past `MAX_BULK_ACK`.
 		more: bool,
@@ -581,7 +583,7 @@ impl State {
 							self.read_state
 								.entries
 								.get(&channel.id)
-								.map_or(true, |(read, _)| read.is_none_or(|r| latest > r))
+								.is_none_or(|(read, _)| read.is_none_or(|r| latest > r))
 						}))
 			})
 			.filter_map(|channel| {

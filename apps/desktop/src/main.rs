@@ -2823,12 +2823,12 @@ impl Desktop {
 					None
 				}
 				Command::Website => {
-					ctx.open_url(egui::OpenUrl::new_tab("https://github.com/surf1k/Serein"));
+					ctx.open_url(egui::OpenUrl::new_tab("https://github.com/ymico/rustcord"));
 					None
 				}
 				Command::ReportIssue => {
 					ctx.open_url(egui::OpenUrl::new_tab(
-						"https://github.com/surf1k/Serein/issues/new/choose",
+						"https://github.com/ymico/rustcord/issues/new/choose",
 					));
 					None
 				}

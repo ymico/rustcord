@@ -203,6 +203,6 @@ jobs:
     with:
       tag: ${{ needs.prepare.outputs.tag }}
       channel: ${{ inputs.channel || 'nightly' }}
-      base_url: https://surf1k.github.io/rustcord
+      base_url: https://ymico.github.io/rustcord
       deploy: true
     secrets: inherit

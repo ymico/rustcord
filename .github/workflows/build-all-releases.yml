@@ -45,7 +45,7 @@ jobs:
 
   build-macos:
     name: Build macOS (arm64)
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.98.1
@@ -115,7 +115,7 @@ jobs:
           Native Discord client written in Rust.
 
           #### Downloads
-          - **Windows (x86_64)**: \`rustcord-windows-x86_64.zip\`
+          - **Windows (x86_64)**: \`rustcord-windows-x86_64.zip\` & \`rustcord.exe\`
           - **macOS (Apple Silicon arm64)**: \`rustcord-macos-arm64.zip\`
           - **Linux (x86_64)**: \`rustcord-linux-x86_64.tar.gz\`
           "
