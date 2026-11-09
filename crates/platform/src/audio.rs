@@ -70,7 +70,7 @@ fn advertised(
 	supported
 		.take(64)
 		.filter(|config| {
-			(1..=8).contains(&config.channels()) && supported_format(config.sample_format())
+			(1..=32).contains(&config.channels()) && supported_format(config.sample_format())
 		})
 		.filter_map(|config| {
 			let rate = match preference {
@@ -104,14 +104,19 @@ fn checked(config: SupportedStreamConfig) -> Result<SupportedStreamConfig, &'sta
 	}
 }
 fn usable(config: &SupportedStreamConfig) -> bool {
-	(1..=8).contains(&config.channels())
+	(1..=32).contains(&config.channels())
 		&& (8_000..=192_000).contains(&config.sample_rate())
 		&& supported_format(config.sample_format())
 }
 fn supported_format(format: SampleFormat) -> bool {
 	matches!(
 		format,
-		SampleFormat::F32 | SampleFormat::I16 | SampleFormat::I32 | SampleFormat::U16
+		SampleFormat::F32
+			| SampleFormat::I16
+			| SampleFormat::I32
+			| SampleFormat::U16
+			| SampleFormat::I24
+			| SampleFormat::U24
 	)
 }
 

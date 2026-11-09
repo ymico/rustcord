@@ -23,32 +23,89 @@ pub struct DeviceList {
 	pub inputs: Vec<(String, String)>,
 	pub outputs: Vec<(String, String)>,
 }
+
+fn device_name(device: &cpal::Device) -> String {
+	if let Ok(desc) = device.description() {
+		let trimmed = desc.name().trim();
+		if !trimmed.is_empty() {
+			return trimmed.chars().take(128).collect();
+		}
+	}
+	let to_s = device.to_string();
+	let trimmed = to_s.trim();
+	if !trimmed.is_empty() {
+		return trimmed.chars().take(128).collect();
+	}
+	"Audio Device".to_string()
+}
+
+fn device_supports_input(device: &cpal::Device) -> bool {
+	device.supports_input()
+		|| device.default_input_config().is_ok()
+		|| device.supported_input_configs().is_ok_and(|mut iter| iter.next().is_some())
+}
+
+fn device_supports_output(device: &cpal::Device) -> bool {
+	device.supports_output()
+		|| device.default_output_config().is_ok()
+		|| device.supported_output_configs().is_ok_and(|mut iter| iter.next().is_some())
+}
+
 pub fn devices() -> Result<DeviceList, &'static str> {
 	let host = cpal::default_host();
 	let mut list = DeviceList {
 		inputs: vec![],
 		outputs: vec![],
 	};
-	for device in host
-		.devices()
-		.map_err(|_| "Audio devices are unavailable")?
-		.take(64)
-	{
+
+	let mut seen_inputs = std::collections::HashSet::new();
+	let mut seen_outputs = std::collections::HashSet::new();
+
+	let mut add_device = |device: &cpal::Device, list: &mut DeviceList| {
 		let Ok(id) = device.id() else {
-			continue;
+			return;
 		};
 		let id = id.to_string();
 		if id.len() > 512 {
-			continue;
+			return;
 		}
-		let name: String = device.to_string().chars().take(128).collect();
-		if device.supports_input() && list.inputs.len() < 32 {
-			list.inputs.push((id.clone(), name.clone()));
+		if device_supports_input(device) && list.inputs.len() < 64 && seen_inputs.insert(id.clone()) {
+			let name = device_name(device);
+			list.inputs.push((id.clone(), name));
 		}
-		if device.supports_output() && list.outputs.len() < 32 {
+		if device_supports_output(device) && list.outputs.len() < 64 && seen_outputs.insert(id.clone()) {
+			let name = device_name(device);
 			list.outputs.push((id, name));
 		}
+	};
+
+	// 1. Prioritize default devices so system soundcards are guaranteed to be present
+	if let Some(default_in) = host.default_input_device() {
+		add_device(&default_in, &mut list);
 	}
+	if let Some(default_out) = host.default_output_device() {
+		add_device(&default_out, &mut list);
+	}
+
+	// 2. Query dedicated input_devices() and output_devices() from the host
+	if let Ok(inputs) = host.input_devices() {
+		for dev in inputs.take(64) {
+			add_device(&dev, &mut list);
+		}
+	}
+	if let Ok(outputs) = host.output_devices() {
+		for dev in outputs.take(64) {
+			add_device(&dev, &mut list);
+		}
+	}
+
+	// 3. Fallback to general host.devices()
+	if let Ok(all_devs) = host.devices() {
+		for dev in all_devs.take(64) {
+			add_device(&dev, &mut list);
+		}
+	}
+
 	Ok(list)
 }
 pub struct Gate {
@@ -658,6 +715,12 @@ impl Streams {
 			cpal::SampleFormat::U16 => {
 				output_stream::<u16>(&output, &stream_config, render, gate.clone(), revision)
 			}
+			cpal::SampleFormat::I24 => {
+				output_stream::<cpal::I24>(&output, &stream_config, render, gate.clone(), revision)
+			}
+			cpal::SampleFormat::U24 => {
+				output_stream::<cpal::U24>(&output, &stream_config, render, gate.clone(), revision)
+			}
 			_ => Err("Speaker sample format is not supported"),
 		}?;
 		if !gate.ready.load(Ordering::Acquire)
@@ -748,6 +811,21 @@ fn open_input_stream(
 		cpal::SampleFormat::U16 => {
 			input_stream::<u16>(&input, &stream_config, capture, gate.clone(), revision)
 		}
+		cpal::SampleFormat::I24 => {
+			input_stream::<cpal::I24>(&input, &stream_config, capture, gate.clone(), revision)
+		}
+		cpal::SampleFormat::U24 => {
+			input_stream::<cpal::U24>(&input, &stream_config, capture, gate.clone(), revision)
+		}
+		cpal::SampleFormat::I8 => {
+			input_stream::<i8>(&input, &stream_config, capture, gate.clone(), revision)
+		}
+		cpal::SampleFormat::U8 => {
+			input_stream::<u8>(&input, &stream_config, capture, gate.clone(), revision)
+		}
+		cpal::SampleFormat::F64 => {
+			input_stream::<f64>(&input, &stream_config, capture, gate.clone(), revision)
+		}
 		_ => Err("Microphone sample format is not supported"),
 	}?;
 	stream
@@ -756,16 +834,40 @@ fn open_input_stream(
 	Ok((stream, input_read, input_id))
 }
 fn choose(host: &cpal::Host, id: Option<&str>, input: bool) -> Result<cpal::Device, &'static str> {
-	if let Some(id) = id {
-		let id = id.parse().map_err(|_| "Invalid audio device selection")?;
-		if let Some(device) = host.device_by_id(&id) {
-			return Ok(device);
+	if let Some(id_str) = id {
+		if let Ok(parsed_id) = id_str.parse::<cpal::DeviceId>() {
+			if let Some(device) = host.device_by_id(&parsed_id) {
+				return Ok(device);
+			}
 		}
+		// Fallback: match by string ID from available devices
+		let check_dev = |dev: &cpal::Device| {
+			dev.id().ok().is_some_and(|d| d.to_string() == id_str)
+		};
 		if input {
-			return Err("Selected microphone is unavailable");
+			if let Ok(iter) = host.input_devices() {
+				for dev in iter {
+					if check_dev(&dev) {
+						return Ok(dev);
+					}
+				}
+			}
+		} else if let Ok(iter) = host.output_devices() {
+			for dev in iter {
+				if check_dev(&dev) {
+					return Ok(dev);
+				}
+			}
+		}
+		if let Ok(iter) = host.devices() {
+			for dev in iter {
+				if check_dev(&dev) {
+					return Ok(dev);
+				}
+			}
 		}
 	}
-	// Keep the preference, but use the default while the selected device is absent.
+	// Fall back to system default device while the selected device is absent or re-enumerating
 	if input {
 		host.default_input_device()
 	} else {
@@ -774,25 +876,26 @@ fn choose(host: &cpal::Host, id: Option<&str>, input: bool) -> Result<cpal::Devi
 	.ok_or("No default audio device is available")
 }
 fn input_config(device: &cpal::Device) -> Result<cpal::SupportedStreamConfig, &'static str> {
-	let supported: Vec<_> = device
-		.supported_input_configs()
-		.map_err(|_| "Microphone formats are unavailable")?
-		.take(64)
-		.collect();
-	if let Some(config) = supported
-		.into_iter()
-		.filter(|c| c.channels() > 0 && c.channels() <= 8)
-		.filter(|c| supported_format(c.sample_format()))
-		.filter_map(|c| c.try_with_sample_rate(48_000))
-		.min_by_key(|c| c.channels())
-	{
-		return Ok(config);
+	if let Ok(supported) = device.supported_input_configs() {
+		let configs: Vec<_> = supported.take(64).collect();
+		if let Some(config) = configs
+			.into_iter()
+			.filter(|c| (1..=32).contains(&c.channels()))
+			.filter(|c| supported_format(c.sample_format()))
+			.filter_map(|c| {
+				let rate = 48_000.clamp(c.min_sample_rate(), c.max_sample_rate());
+				c.try_with_sample_rate(rate)
+			})
+			.min_by_key(|c| (c.channels().abs_diff(1), c.sample_rate().abs_diff(48_000)))
+		{
+			return Ok(config);
+		}
 	}
 	let config = device
 		.default_input_config()
 		.map_err(|_| "Default audio format is unavailable")?;
 	if config.channels() == 0
-		|| config.channels() > 8
+		|| config.channels() > 32
 		|| !(8_000..=192_000).contains(&config.sample_rate())
 		|| !supported_format(config.sample_format())
 	{
@@ -807,6 +910,11 @@ fn supported_format(format: cpal::SampleFormat) -> bool {
 			| cpal::SampleFormat::I16
 			| cpal::SampleFormat::I32
 			| cpal::SampleFormat::U16
+			| cpal::SampleFormat::I24
+			| cpal::SampleFormat::U24
+			| cpal::SampleFormat::I8
+			| cpal::SampleFormat::U8
+			| cpal::SampleFormat::F64
 	)
 }
 fn is_fatal_error(error: &cpal::Error) -> bool {
@@ -924,7 +1032,48 @@ impl Capture {
 			return;
 		}
 		for frame in data.chunks_exact(channels) {
-			let sample = frame.iter().map(|v| v.to_sample::<f32>()).sum::<f32>() / channels as f32;
+			let sample = match channels {
+				0 => 0.0,
+				1 => frame[0].to_sample::<f32>(),
+				2 => {
+					let left = frame[0].to_sample::<f32>();
+					let right = frame[1].to_sample::<f32>();
+					// When a single XLR mic is plugged into an audio interface, one channel is active
+					// while the other is unplugged/silent. Preserve full volume of the active channel.
+					if left.abs() > 0.0001 && right.abs() < 0.00005 {
+						left
+					} else if right.abs() > 0.0001 && left.abs() < 0.00005 {
+						right
+					} else {
+						(left + right) * 0.5
+					}
+				}
+				_ => {
+					// Multichannel audio interface: find dominant active microphone channel
+					// instead of averaging with unused silent channels which causes heavy attenuation.
+					let mut max_abs = 0.0f32;
+					let mut dominant = 0.0f32;
+					let mut active_count = 0usize;
+					let mut sum = 0.0f32;
+					for v in frame {
+						let s = v.to_sample::<f32>();
+						sum += s;
+						let a = s.abs();
+						if a > 0.0005 {
+							active_count += 1;
+						}
+						if a > max_abs {
+							max_abs = a;
+							dominant = s;
+						}
+					}
+					if active_count <= 1 {
+						dominant
+					} else {
+						sum / (active_count as f32).max(1.0)
+					}
+				}
+			};
 			// Keep microphone gain after AEC to avoid clipping the echo before cancellation.
 			self.sample(amplify(sample, 1.0));
 		}
