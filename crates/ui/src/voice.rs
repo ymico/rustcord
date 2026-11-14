@@ -3602,13 +3602,26 @@ impl MessagingUi {
 		{
 			let stage = self.stage_shows_video(state, channel) || state.is_group_dm(channel);
 			// The stage also carries the conversation header when it draws one.
-			let min_height = (ui.available_height() * 0.35).clamp(140.0, 320.0);
-			let maximum = (ui.available_height() - 140.0).max(min_height);
-			let height = if stage {
-				(ui.available_height() * 0.60).clamp(min_height, maximum)
+			let window_height = ui.ctx().content_rect().height();
+			let min_height = if window_height < 500.0 {
+				(ui.available_height() * 0.28).clamp(90.0, 180.0)
 			} else {
-				((ui.available_height() * 0.35).clamp(140.0, 260.0)
-					+ if header.is_some() { 48.0 } else { 0.0 }).min(maximum)
+				(ui.available_height() * 0.35).clamp(140.0, 320.0)
+			};
+			let maximum = (ui.available_height() - 110.0).max(min_height);
+			let height = if stage {
+				if window_height < 500.0 {
+					(ui.available_height() * 0.45).clamp(min_height, maximum)
+				} else {
+					(ui.available_height() * 0.60).clamp(min_height, maximum)
+				}
+			} else {
+				let base = if window_height < 500.0 {
+					(ui.available_height() * 0.25).clamp(min_height, 180.0)
+				} else {
+					(ui.available_height() * 0.35).clamp(min_height, 260.0)
+				};
+				(base + if header.is_some() { 48.0 } else { 0.0 }).min(maximum)
 			};
 			// Dragging the bottom edge resizes the call; video and voice-only keep separate sizes.
 			// The conversation and composer below always keep at least 140 points.

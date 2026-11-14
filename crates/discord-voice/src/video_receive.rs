@@ -20,7 +20,7 @@ pub const MAX_FRAME_BYTES: usize = 2 * 1024 * 1024 + 64 * 1024;
 pub const MAX_SOURCES: usize = 16;
 /// Decoders kept alive at once; each holds reference pictures for one remote user.
 const MAX_DECODERS: usize = 8;
-const QUEUE_BYTES: usize = 4 * 1024 * 1024;
+const QUEUE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_WIDTH: u32 = 1920;
 const MAX_PIXELS: u64 = 1920 * 1080;
 const START_CODE: [u8; 4] = [0, 0, 0, 1];
@@ -483,7 +483,7 @@ impl Receivers {
 /// Dropping the returned sender ends the thread and releases every decoder.
 pub(crate) fn spawn_decoder(sink: VideoSink) -> Result<(DecoderQueue, Lost), &'static str> {
 	// Keep short bursts, but recover from a fresh keyframe instead of replaying stale video.
-	let (send, receive) = sync_channel(16);
+	let (send, receive) = sync_channel(32);
 	let lost: Lost = Arc::new(Mutex::new(Vec::new()));
 	let report = lost.clone();
 	let counters = Arc::new(DecoderCounters::default());

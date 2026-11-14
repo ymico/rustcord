@@ -43,7 +43,7 @@ impl Default for ScreenUi {
 			supported: false,
 			preview: None,
 			height: 1080,
-			fps: 30,
+			fps: 60,
 			cursor: true,
 			audio: cfg!(target_os = "macos"),
 		}
@@ -206,9 +206,9 @@ impl ScreenUi {
 		ui.add_space(6.0);
 		ui.horizontal_wrapped(|ui| {
 			for (label, height, fps) in [
-				("Balanced · 720p30", 720, 30),
-				("Sharp · 1080p30", 1080, 30),
 				("Smooth · 1080p60", 1080, 60),
+				("Sharp · 720p60", 720, 60),
+				("Balanced · 720p30", 720, 30),
 			] {
 				if segment(ui, label, self.height == height && self.fps == fps).clicked() {
 					self.height = height;

@@ -721,8 +721,8 @@ fn validate_frame(frame: &RawFrame) -> Result<(usize, usize), &'static str> {
 
 pub(super) fn preview_frame(frame: &RawFrame) -> Result<image::RgbaImage, &'static str> {
 	validate_frame(frame)?;
-	let scale = (320.0 / f64::from(frame.width))
-		.min(180.0 / f64::from(frame.height))
+	let scale = (1920.0 / f64::from(frame.width))
+		.min(1080.0 / f64::from(frame.height))
 		.min(1.0);
 	let width = (f64::from(frame.width) * scale).round().max(1.0) as u32;
 	let height = (f64::from(frame.height) * scale).round().max(1.0) as u32;

@@ -2186,17 +2186,18 @@ impl MessagingUi {
 					divider(ui);
 				}
 				if in_call {
-					if ui.available_height() < 500.0 {
-						let max_voice_height = (ui.available_height() * 0.45).clamp(100.0, 180.0);
-						egui::ScrollArea::vertical()
-							.max_height(max_voice_height)
-							.auto_shrink([false, true])
-							.show(ui, |ui| {
-								self.voice_card_section(ui, state, commands);
-							});
+					let screen_height = ui.ctx().content_rect().height();
+					let max_voice_height = if screen_height < 600.0 {
+						(screen_height * 0.35).clamp(80.0, 160.0)
 					} else {
-						self.voice_card_section(ui, state, commands);
-					}
+						(screen_height * 0.45).clamp(140.0, 360.0)
+					};
+					egui::ScrollArea::vertical()
+						.max_height(max_voice_height)
+						.auto_shrink([false, true])
+						.show(ui, |ui| {
+							self.voice_card_section(ui, state, commands);
+						});
 					divider(ui);
 				}
 				egui::Frame::new()
