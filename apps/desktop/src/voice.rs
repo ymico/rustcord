@@ -1666,7 +1666,7 @@ impl Voice {
 		input_enabled: bool,
 	) -> Result<(), &'static str> {
 		let (capture_send, capture) = mpsc::sync_channel(8);
-		let (camera_frames, camera_receive) = mpsc::sync_channel(1);
+		let (camera_frames, camera_receive) = mpsc::sync_channel(4);
 		let (stream_audio, stream_audio_receive) = mpsc::sync_channel(8);
 		let (playback, playback_receive) = mpsc::sync_channel(8);
 		let (send, events) = mpsc::sync_channel(8);
@@ -2733,7 +2733,7 @@ mod tests {
 		let (controls, _control_events) = watch::channel(Controls::default());
 		let (_notices, events) = mpsc::sync_channel(8);
 		let (_speaking, speakers) = watch::channel([0; 64]);
-		let (camera_frames, _camera_frames) = mpsc::sync_channel(1);
+		let (camera_frames, _camera_frames) = mpsc::sync_channel(4);
 		let (stream_audio, _stream_audio) = mpsc::sync_channel(8);
 		manager.live = Some(Live {
 			generation: pending.generation,

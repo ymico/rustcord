@@ -427,11 +427,33 @@ async fn run_inner(
 		}
 		tokio::select! {
 			changed=controls.changed()=>{ if changed.is_err(){return Ok(());} },
-			_=video_tick.tick(), if !video.is_empty()=>{
-				let generation=controls.borrow().camera;
+			_=video_tick.tick()=>{
+				let control=*controls.borrow();
+				let enabled=dave.ready && encryption.is_some() && !discovering && !resuming;
+				let camera_enabled=enabled && video.available() && control.camera!=0;
+				let generation=control.camera;
 				if !dave.ready || resuming || generation==0 || generation!=video.generation {video.clear();}
-				else if let Some(packet)=video.next() && let Some(socket)=&udp {
-					udp_failures.send(socket,&packet,"Camera UDP send failed")?;
+				else if let Some(socket)=&udp {
+					while let Some(packet)=video.next() {
+						udp_failures.send(socket,&packet,"Camera UDP send failed")?;
+					}
+				}
+				if let Some(camera)=&camera && camera_enabled && video.is_empty() {
+					if let Ok(frame)=camera.try_recv() && frame.generation==control.camera
+						&& frame.data.len()<=crate::camera_video::MAX_FRAME_BYTES {
+						if !video.announced {
+							json_send(&mut ws,video.announcement(ssrc,true)).await?;
+							video.announced=true;
+						}
+						let normalized=crate::video_sps::normalize(&frame.data)?;
+						let encrypted=dave.session.encrypt(davey::MediaType::VIDEO,davey::Codec::H264,&normalized).map_err(|_|"DAVE camera encryption failed")?;
+						video.packetize(&encrypted,frame.timestamp,encryption.as_mut().ok_or("Missing camera transport key")?)?;
+						if let Some(socket)=&udp {
+							while let Some(packet)=video.next() {
+								udp_failures.send(socket,&packet,"Camera UDP send failed")?;
+							}
+						}
+					}
 				}
 			},
 			_=tick.tick()=>{
@@ -479,17 +501,6 @@ async fn run_inner(
 				if video.announced && !camera_enabled {
 					json_send(&mut ws,video.announcement(ssrc,camera_enabled)).await?;
 					video.announced=camera_enabled;
-				}
-				if let Some(camera)=&camera && let Ok(frame)=camera.try_recv()
-					&& camera_enabled && frame.generation==control.camera && video.is_empty()
-					&& frame.data.len()<=crate::camera_video::MAX_FRAME_BYTES {
-					if !video.announced {
-						json_send(&mut ws,video.announcement(ssrc,true)).await?;
-						video.announced=true;
-					}
-					let normalized=crate::video_sps::normalize(&frame.data)?;
-					let encrypted=dave.session.encrypt(davey::MediaType::VIDEO,davey::Codec::H264,&normalized).map_err(|_|"DAVE camera encryption failed")?;
-					video.packetize(&encrypted,frame.timestamp,encryption.as_mut().ok_or("Missing camera transport key")?)?;
 				}
 				// Preserve ordinary callback batches. Only a real stall (four packet
 				// intervals) discards queued speech; mute/security gates always flush.

@@ -9,3 +9,5 @@ dist-*/
 node_modules/
 __pycache__/
 dist-release/
+*.tar.gz
+*.zip

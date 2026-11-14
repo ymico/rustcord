@@ -43,7 +43,7 @@ mod tests {
 	fn native_modes_follow_stream_dimensions_then_actual_frame_rate() {
 		let modes = [
 			(3840, 2048, 15.0),
-			(1280, 720, 30.0),
+			(1280, 720, 60.0),
 			(640, 480, 30.0),
 			(640, 480, 15.0),
 		];
@@ -59,7 +59,7 @@ mod tests {
 		assert!(rank_with_ceiling(1920, 1080, 15.0, 1920, 1080).is_some());
 		assert!(rank_with_ceiling(3840, 2160, 15.0, 1920, 1080).is_none());
 		assert_eq!(nearest_fps(5.0, 30.0), Some(30.0));
-		assert_eq!(nearest_fps(24.0, 60.0), Some(30.0));
+		assert_eq!(nearest_fps(24.0, 60.0), Some(60.0));
 		assert_eq!(nearest_fps(1.0, 10.0), Some(10.0));
 		for (width, height) in [
 			(0, HEIGHT),

@@ -2008,6 +2008,8 @@ impl MessagingUi {
 				bottom: 0,
 			})
 			.show(ui, |ui| {
+				let clip_area = ui.available_rect_before_wrap();
+				ui.set_clip_rect(clip_area.intersect(ui.clip_rect()));
 				let ctx = ui.ctx().clone();
 				if self.guild.is_none() {
 					// Search and Friends share one row; Friends is the compact glyph beside it.
@@ -2184,7 +2186,17 @@ impl MessagingUi {
 					divider(ui);
 				}
 				if in_call {
-					self.voice_card_section(ui, state, commands);
+					if ui.available_height() < 500.0 {
+						let max_voice_height = (ui.available_height() * 0.45).clamp(100.0, 180.0);
+						egui::ScrollArea::vertical()
+							.max_height(max_voice_height)
+							.auto_shrink([false, true])
+							.show(ui, |ui| {
+								self.voice_card_section(ui, state, commands);
+							});
+					} else {
+						self.voice_card_section(ui, state, commands);
+					}
 					divider(ui);
 				}
 				egui::Frame::new()
@@ -4655,7 +4667,7 @@ impl MessagingUi {
 									design::ImageSection::ServerList,
 								)
 							} else {
-								egui::Color32::TRANSPARENT
+								background.sidebar
 							})
 							.inner_margin(egui::Margin {
 								left: 8,
@@ -5058,7 +5070,7 @@ impl MessagingUi {
 									design::ImageSection::Composer,
 								)
 							} else {
-								egui::Color32::TRANSPARENT
+								background.sidebar
 							})
 							// The bottom inset matches the account card's, so the input and the
 							// account pill sit on one line across the window.

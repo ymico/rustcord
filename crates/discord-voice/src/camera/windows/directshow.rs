@@ -81,7 +81,7 @@ impl ISampleGrabberCB_Impl for Callback_Impl {
 						return Err("Camera changed its video format; restart the camera");
 					}
 				}
-				if last.0.elapsed() < FRAME_INTERVAL.saturating_sub(Duration::from_millis(10)) {
+				if last.0.elapsed() < FRAME_INTERVAL.saturating_sub(Duration::from_millis(5)) {
 					return Ok(None);
 				}
 				last.0 = Instant::now();

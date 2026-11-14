@@ -3602,15 +3602,16 @@ impl MessagingUi {
 		{
 			let stage = self.stage_shows_video(state, channel) || state.is_group_dm(channel);
 			// The stage also carries the conversation header when it draws one.
+			let min_height = (ui.available_height() * 0.35).clamp(140.0, 320.0);
+			let maximum = (ui.available_height() - 140.0).max(min_height);
 			let height = if stage {
-				(ui.available_height() * 0.74).clamp(320.0, 900.0)
+				(ui.available_height() * 0.60).clamp(min_height, maximum)
 			} else {
-				(ui.available_height() * 0.36).clamp(240.0, 320.0)
-					+ if header.is_some() { 48.0 } else { 0.0 }
+				((ui.available_height() * 0.35).clamp(140.0, 260.0)
+					+ if header.is_some() { 48.0 } else { 0.0 }).min(maximum)
 			};
 			// Dragging the bottom edge resizes the call; video and voice-only keep separate sizes.
-			// The conversation and composer below always keep at least 160 points.
-			let maximum = (ui.available_height() - 160.0).max(180.0);
+			// The conversation and composer below always keep at least 140 points.
 			let id = if stage {
 				"dm-call-video"
 			} else {
@@ -3619,7 +3620,7 @@ impl MessagingUi {
 			egui::Panel::top(id)
 				.resizable(true)
 				.default_size(height)
-				.size_range(180.0..=maximum)
+				.size_range(min_height..=maximum)
 				.show_separator_line(false)
 				.frame(egui::Frame::new().fill(STAGE_FILL))
 				.show(ui, |ui| {
@@ -4105,6 +4106,7 @@ impl MessagingUi {
 				});
 				egui::CollapsingHeader::new("Voice levels")
 					.id_salt("call-quick-levels")
+					.default_open(false)
 					.show(ui, |ui| {
 						ui.add_enabled_ui(self.voice_available && !state.demo, |ui| {
 							gain_slider(ui, &mut self.voice_gain.input_percent, "My microphone gain");

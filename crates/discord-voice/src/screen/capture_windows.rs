@@ -83,6 +83,8 @@ pub(crate) fn sources() -> Result<Vec<Source>, &'static str> {
 	Ok(sources)
 }
 
+pub(crate) type BufferPool = Arc<std::sync::Mutex<Vec<Vec<u8>>>>;
+
 #[derive(Clone)]
 struct Flags {
 	frames: SyncSender<RawFrame>,
@@ -90,6 +92,7 @@ struct Flags {
 	pending: Arc<AtomicBool>,
 	next_frame: Instant,
 	interval: Duration,
+	pool: BufferPool,
 }
 
 struct Handler(Flags);
@@ -157,22 +160,38 @@ impl GraphicsCaptureApiHandler for Handler {
 			self.0.stop.store(true, Ordering::Release);
 			return Err("Captured frame buffer is incomplete");
 		}
-		let mut data = Vec::with_capacity(data_len);
+		let mut data = self
+			.0
+			.pool
+			.lock()
+			.ok()
+			.and_then(|mut p| p.pop())
+			.unwrap_or_else(|| Vec::with_capacity(data_len));
+		data.clear();
+		if data.capacity() < data_len {
+			data.reserve(data_len - data.capacity());
+		}
 		for row in source[..source_len].chunks_exact(stride) {
 			data.extend_from_slice(&row[..row_bytes]);
 		}
-		if self
-			.0
-			.frames
-			.try_send(RawFrame {
-				width,
-				height,
-				stride: row_bytes,
-				data,
-			})
-			.is_err()
-		{
+		let raw = RawFrame {
+			width,
+			height,
+			stride: row_bytes,
+			data,
+		};
+		if let Err(err) = self.0.frames.try_send(raw) {
 			self.0.pending.store(false, Ordering::Release);
+			let mut v = match err {
+				std::sync::mpsc::TrySendError::Full(f)
+				| std::sync::mpsc::TrySendError::Disconnected(f) => f.data,
+			};
+			v.clear();
+			if let Ok(mut p) = self.0.pool.lock() {
+				if p.len() < 3 {
+					p.push(v);
+				}
+			}
 		}
 		Ok(())
 	}
@@ -197,6 +216,7 @@ impl Capture {
 		ready: Arc<AtomicBool>,
 		audio_epoch: Arc<AtomicU64>,
 		pending: Arc<AtomicBool>,
+		pool: BufferPool,
 	) -> Result<Self, &'static str> {
 		if settings.width == 0
 			|| settings.height == 0
@@ -213,7 +233,7 @@ impl Capture {
 					.into_iter()
 					.find(|monitor| monitor_id(monitor) == id)
 					.ok_or("Selected display is no longer available")?;
-				start_item(settings, monitor, frames, stop.clone(), pending)
+				start_item(settings, monitor, frames, stop.clone(), pending, pool)
 			}
 			SourceId::Window(id) => {
 				let window = Window::enumerate()
@@ -221,7 +241,7 @@ impl Capture {
 					.into_iter()
 					.find(|window| window_id(window) == id)
 					.ok_or("Selected window is no longer available")?;
-				start_item(settings, window, frames, stop.clone(), pending)
+				start_item(settings, window, frames, stop.clone(), pending, pool)
 			}
 			#[allow(unreachable_patterns)] // Portal may be absent from platform-scoped models.
 			_ => return Err("The desktop screen picker is available only on Linux"),
@@ -268,6 +288,7 @@ fn start_item<T>(
 	frames: SyncSender<RawFrame>,
 	stop: Arc<AtomicBool>,
 	pending: Arc<AtomicBool>,
+	pool: BufferPool,
 ) -> Result<Capture, &'static str>
 where
 	T: NativeSource,
@@ -284,6 +305,7 @@ where
 		pending,
 		next_frame: Instant::now(),
 		interval: Duration::from_secs_f64(1.0 / f64::from(settings.fps)),
+		pool,
 	};
 	let native = Settings::new(
 		item,

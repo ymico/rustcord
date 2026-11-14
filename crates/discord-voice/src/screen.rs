@@ -116,7 +116,6 @@ pub struct Worker {
 	done: Option<mpsc::Receiver<Result<(), &'static str>>>,
 	#[cfg(target_os = "linux")]
 	status: Arc<Mutex<&'static str>>,
-	#[cfg(target_os = "linux")]
 	preview_visible: Arc<AtomicBool>,
 }
 
@@ -141,9 +140,7 @@ impl Worker {
 		let status = Arc::new(Mutex::new("Choose a screen or window in the system picker"));
 		#[cfg(target_os = "linux")]
 		let worker_status = status.clone();
-		#[cfg(target_os = "linux")]
 		let preview_visible = Arc::new(AtomicBool::new(true));
-		#[cfg(target_os = "linux")]
 		let worker_preview_visible = preview_visible.clone();
 		// A few frames of slack absorbs send jitter without forcing keyframes on every hiccup.
 		let (send, frames) = tokio::sync::mpsc::channel(3);
@@ -191,6 +188,7 @@ impl Worker {
 					audio_send,
 					worker_audio_epoch,
 					worker_preview,
+					worker_preview_visible,
 					&wake,
 				);
 				finished_ready.store(false, Ordering::Release);
@@ -214,7 +212,6 @@ impl Worker {
 				done: Some(done),
 				#[cfg(target_os = "linux")]
 				status,
-				#[cfg(target_os = "linux")]
 				preview_visible,
 			},
 			Video {
@@ -229,9 +226,8 @@ impl Worker {
 		))
 	}
 
-	pub fn set_preview_visible(&self, _visible: bool) {
-		#[cfg(target_os = "linux")]
-		self.preview_visible.store(_visible, Ordering::Release);
+	pub fn set_preview_visible(&self, visible: bool) {
+		self.preview_visible.store(visible, Ordering::Release);
 	}
 
 	pub fn capture_status(&self) -> Option<&'static str> {
@@ -274,6 +270,7 @@ fn encode_loop(
 	audio: Option<tokio::sync::mpsc::Sender<AudioChunk>>,
 	audio_epoch: Arc<AtomicU64>,
 	preview: Arc<Mutex<Option<image::RgbaImage>>>,
+	preview_visible: Arc<AtomicBool>,
 	wake: &impl Fn(),
 ) -> Result<(), &'static str> {
 	if stop.load(Ordering::Acquire) || send.is_closed() {
@@ -285,6 +282,8 @@ fn encode_loop(
 	#[cfg(target_os = "windows")]
 	let raw_pending = Arc::new(AtomicBool::new(false));
 	#[cfg(target_os = "windows")]
+	let pool: capture::BufferPool = Arc::new(Mutex::new(Vec::new()));
+	#[cfg(target_os = "windows")]
 	let _native = capture::Capture::start(
 		settings,
 		raw_send,
@@ -293,6 +292,7 @@ fn encode_loop(
 		ready.clone(),
 		audio_epoch,
 		raw_pending.clone(),
+		pool.clone(),
 	)?;
 	// The worker's stop also reaches a pending macOS picker, so call teardown closes it now.
 	#[cfg(not(target_os = "windows"))]
@@ -345,13 +345,25 @@ fn encode_loop(
 		let now = Instant::now();
 		if let Some(frame) = &frame {
 			first_frame_deadline = None;
-			if now >= next_preview {
+			if preview_visible.load(Ordering::Acquire) && now >= next_preview {
 				let image = preview_frame(frame)?;
 				if let Ok(mut slot) = preview.try_lock() {
 					*slot = Some(image);
 				}
 				next_preview = now + Duration::from_millis(33);
 				wake();
+			}
+		}
+		#[cfg(target_os = "windows")]
+		if frame.is_some() {
+			if let Some(old) = latest_frame.take() {
+				let mut v = old.data;
+				v.clear();
+				if let Ok(mut p) = pool.lock() {
+					if p.len() < 3 {
+						p.push(v);
+					}
+				}
 			}
 		}
 		let encode = retain_screen_frame(
@@ -432,6 +444,16 @@ fn encode_loop(
 		};
 		if send.try_send(frame).is_err() {
 			keyframe.store(true, Ordering::Release);
+		}
+	}
+	#[cfg(target_os = "windows")]
+	if let Some(old) = latest_frame.take() {
+		let mut v = old.data;
+		v.clear();
+		if let Ok(mut p) = pool.lock() {
+			if p.len() < 3 {
+				p.push(v);
+			}
 		}
 	}
 	capture_stop.store(true, Ordering::Release);
@@ -699,8 +721,8 @@ fn validate_frame(frame: &RawFrame) -> Result<(usize, usize), &'static str> {
 
 pub(super) fn preview_frame(frame: &RawFrame) -> Result<image::RgbaImage, &'static str> {
 	validate_frame(frame)?;
-	let scale = (640.0 / f64::from(frame.width))
-		.min(360.0 / f64::from(frame.height))
+	let scale = (320.0 / f64::from(frame.width))
+		.min(180.0 / f64::from(frame.height))
 		.min(1.0);
 	let width = (f64::from(frame.width) * scale).round().max(1.0) as u32;
 	let height = (f64::from(frame.height) * scale).round().max(1.0) as u32;

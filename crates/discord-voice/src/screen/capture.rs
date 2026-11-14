@@ -40,6 +40,8 @@ mod imp;
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub(crate) use imp::{Capture, sources};
+#[cfg(target_os = "windows")]
+pub(crate) use imp::BufferPool;
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub(crate) fn sources() -> Result<Vec<Source>, &'static str> {

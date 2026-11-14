@@ -22,7 +22,7 @@ mod windows;
 
 pub const WIDTH: usize = 1280;
 pub const HEIGHT: usize = 720;
-pub const FPS: u32 = 30;
+pub const FPS: u32 = 60;
 pub const BIT_RATE: u32 = 2_500_000;
 pub const MAX_ENCODED_BYTES: usize = 512 * 1024;
 pub const SUPPORTED: bool = cfg!(any(
@@ -108,6 +108,7 @@ impl Camera {
 		if thread::Builder::new()
 			.name("serein-camera".into())
 			.spawn(move || {
+				let _resolution = crate::timer::Resolution::acquire();
 				// Declared first so it is released last, after the camera encoder.
 				let _teardown = teardown;
 				let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -465,7 +466,7 @@ mod macos {
 				let Ok(mut last) = state.last.try_lock() else {
 					return;
 				};
-				if last.elapsed() < FRAME_INTERVAL.saturating_sub(Duration::from_millis(10)) {
+				if last.elapsed() < FRAME_INTERVAL.saturating_sub(Duration::from_millis(5)) {
 					return;
 				}
 				*last = Instant::now();
