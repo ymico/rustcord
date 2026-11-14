@@ -148,6 +148,8 @@ enum Notice {
 struct Live {
 	generation: u64,
 	channel: Id,
+	guild: Option<Id>,
+	server: Option<(Secret, String)>,
 	request: u64,
 	user: Id,
 	peer: Option<Id>,
@@ -370,6 +372,13 @@ pub struct Voice {
 	/// app should confirm that socket before the rejoin depends on it.
 	pub gateway_check: bool,
 }
+
+fn clone_server(server: &Option<(Secret, String)>) -> Option<(Secret, String)> {
+	server.as_ref().and_then(|(token, endpoint)| {
+		Some((Secret::new(token.expose().to_owned()).ok()?, endpoint.clone()))
+	})
+}
+
 impl Voice {
 	pub fn stop(&mut self) {
 		self.camera_test = None;
@@ -600,6 +609,11 @@ impl Voice {
 						let req = *request;
 						let new_chan = *channel;
 						let rev = *negotiation_revision;
+						let server = if guild_id.is_some() && guild_id == live.guild {
+							clone_server(&live.server)
+						} else {
+							None
+						};
 						self.stop();
 						self.pending = Some(Pending {
 							generation: state.generation,
@@ -611,7 +625,7 @@ impl Voice {
 							guild: guild_id,
 							session: Secret::new(session_val).ok(),
 							negotiation_revision: rev,
-							server: None,
+							server,
 							started: Instant::now(),
 							failed_candidate: false,
 						});
@@ -723,7 +737,10 @@ impl Voice {
 			None if joined => 1,
 			None => return self.fail(state, message),
 		};
-		if message == discord_voice::DISCONNECTED_BY_DISCORD
+		if self.pending.as_ref().is_some_and(|p| p.channel != channel) {
+			return None;
+		}
+		if (message == discord_voice::DISCONNECTED_BY_DISCORD && state.voice.active.is_none())
 			|| usize::from(attempt) > REJOIN_DELAYS.len()
 		{
 			return self.give_up_rejoin(state, message, true);
@@ -1237,7 +1254,10 @@ impl Voice {
 			);
 		}
 		// Discord removed this account mid-rejoin; never wait for or retry a replacement.
-		if failure == Some(discord_voice::DISCONNECTED_BY_DISCORD) && self.rejoin.is_some() {
+		if failure == Some(discord_voice::DISCONNECTED_BY_DISCORD)
+			&& self.rejoin.is_some()
+			&& state.voice.active.is_none()
+		{
 			return self.give_up_rejoin(state, discord_voice::DISCONNECTED_BY_DISCORD, true);
 		}
 		if failure.is_some()
@@ -1784,6 +1804,8 @@ impl Voice {
 		self.live = Some(Live {
 			generation: pending.generation,
 			channel: pending.channel,
+			guild: pending.guild,
+			server: clone_server(&pending.server),
 			request: pending.request,
 			user: pending.user,
 			peer: pending.peer,
@@ -2716,6 +2738,8 @@ mod tests {
 		manager.live = Some(Live {
 			generation: pending.generation,
 			channel: pending.channel,
+			guild: pending.guild,
+			server: clone_server(&pending.server),
 			request,
 			user: pending.user,
 			peer: pending.peer,

@@ -91,19 +91,8 @@ impl ServerMenu {
 		}
 	}
 	/// Open Quests modal from the app menu or context menu.
-	pub fn quests_item(&mut self, ui: &mut egui::Ui) -> bool {
-		if menu_row(
-			ui,
-			icons::Icon::GameController,
-			"Quests",
-			design::palette(ui).text,
-		)
-		.clicked()
-		{
-			self.quests_requested = true;
-			ui.close();
-			return true;
-		}
+	#[allow(dead_code)]
+	pub fn quests_item(&mut self, _ui: &mut egui::Ui) -> bool {
 		false
 	}
 	/// Every server and direct message, from the home tile.

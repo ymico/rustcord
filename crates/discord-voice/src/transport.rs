@@ -162,6 +162,7 @@ fn id(data: &Value, key: &str) -> Result<u64, &'static str> {
 	data[key]
 		.as_str()
 		.and_then(|v| v.parse().ok())
+		.or_else(|| data[key].as_u64())
 		.filter(|v| *v != 0)
 		.ok_or("Malformed voice participant")
 }
@@ -727,7 +728,7 @@ async fn run_inner(
 							},
 							12=>{
 								let user=id(data,"user_id")?;
-								if user!=credentials.user.0 && dave.contains(user) {
+								if user!=credentials.user.0 {
 									if let Some(value)=data["audio_ssrc"].as_u64().and_then(|v|u32::try_from(v).ok()) {mixer.announce(user,value)?;}
 									if let Some(decoder) = decoder.as_ref() {announce_video(&mut receivers,decoder,user,data)?;}
 								}
@@ -1125,7 +1126,7 @@ async fn run_stream_inner(
 	.await?;
 	let mut dave = Dave::with_identity(
 		credentials.user.0,
-		credentials.peer.map(|id| id.0),
+		credentials.peer.filter(|_| credentials.guild.is_none()).map(|id| id.0),
 		group,
 		identity,
 	)?;
@@ -1422,12 +1423,14 @@ async fn run_stream_inner(
 								encryption=Some(Encryption::new(&key));secured_at=Some(Instant::now());send(&mut ws,Message::Binary(dave.key_package()?.into())).await?;metrics.signal(Signal::KeyPackageSent,1);emit(Status::TransportReady).map_err(|_|"Stream interface closed")?;emit(Status::Securing).map_err(|_|"Stream interface closed")?;
 							},
 							11=>{let ids=data["user_ids"].as_array().ok_or("Missing stream participants")?;if ids.len()>crate::crypto::MAX_PARTICIPANTS{return Err("Too many stream participants");}let ids=ids.iter().map(|value|value.as_str().and_then(|value|value.parse().ok()).filter(|id|*id!=0).ok_or("Malformed stream participant")).collect::<Result<Vec<_>,_>>()?;let was_ready=dave.ready;if dave.connect(&ids)?{if was_ready{dave.ready=true;}else{deadline=Some(Instant::now()+Duration::from_secs(90));announced=false;awaiting_keyframe=true;invalidate_stream(&mut video, &mut share_audio);}}},
-							5=>{let user=id(data,"user_id")?;if user!=credentials.user.0 && audio.is_some() && dave.contains(user) {let value=u32::try_from(number(data,"ssrc")?).map_err(|_|"Invalid stream SSRC")?;mixer.announce(user,value)?;}},
+							5=>{let user=id(data,"user_id").ok().or_else(||credentials.peer.map(|id|id.0));if let Some(user)=user{if user!=credentials.user.0 && audio.is_some() {let value=u32::try_from(number(data,"ssrc")?).map_err(|_|"Invalid stream SSRC")?;mixer.announce(user,value)?;}}},
 							12=>{
-								let user=id(data,"user_id")?;
-								if user!=credentials.user.0 && dave.contains(user) {
-									if let Some(decoder) = decoder.as_ref() {announce_video(&mut receivers,decoder,user,data)?;}
-									if audio.is_some() && let Some(value)=data["audio_ssrc"].as_u64().and_then(|v|u32::try_from(v).ok()).filter(|v|*v!=0) {mixer.announce(user,value)?;}
+								let user=id(data,"user_id").ok().or_else(||credentials.peer.map(|id|id.0));
+								if let Some(user)=user {
+									if user!=credentials.user.0 {
+										if let Some(decoder) = decoder.as_ref() {announce_video(&mut receivers,decoder,user,data)?;}
+										if audio.is_some() && let Some(value)=data["audio_ssrc"].as_u64().and_then(|v|u32::try_from(v).ok()).filter(|v|*v!=0) {mixer.announce(user,value)?;}
+									}
 								}
 							},
 							13=>{let user=id(data,"user_id")?;receivers.remove(user);if let Some(decoder)=decoder.as_ref(){remove_decoder(decoder,user);}mixer.remove(user);let was_group_member=dave.is_group_member(user);let was_ready=dave.ready;if dave.disconnect(user)?{if dave.alone(){announced=false;awaiting_keyframe=true;invalidate_stream(&mut video, &mut share_audio);dave.enter_sole_member_waiting()?;deadline=None;}else if was_group_member{deadline=Some(Instant::now()+Duration::from_secs(30));announced=false;awaiting_keyframe=true;invalidate_stream(&mut video, &mut share_audio);}else if was_ready{dave.ready=true;deadline=None;}}},

@@ -244,7 +244,7 @@ impl Watch {
 			self.pending = Some(Pending {
 				context,
 				user: call.user,
-				peer: call.peer,
+				peer: Some(streamer),
 				session: Zeroizing::new(call.session.to_owned()),
 				identity: call.identity,
 				audio,

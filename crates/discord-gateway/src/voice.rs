@@ -922,8 +922,11 @@ impl Calls {
 			let (_, request) = self.active.expect("active call");
 			let new_channel = state.channel_id.expect("new channel");
 			self.active = Some((new_channel, request));
+			let same_guild = state.guild_id.is_some() && state.guild_id == self.active_guild;
 			self.active_guild = state.guild_id;
-			self.negotiation_server = None;
+			if !same_guild {
+				self.negotiation_server = None;
+			}
 			self.session_confirmed = false;
 			self.stream = None;
 			self.watch = None;
@@ -931,6 +934,16 @@ impl Calls {
 			self.negotiation_revision = self.negotiation_revision.wrapping_add(1);
 			if let Some(session) = &secret {
 				self.active_session = Some(Secret::new(session.expose().to_owned())?);
+			}
+			if same_guild && let Some((token, endpoint)) = &self.negotiation_server {
+				let token = Secret::new(token.expose().to_owned())?;
+				emit(Event::Voice(voice::Event::Server {
+					request,
+					channel: new_channel,
+					negotiation_revision: Some(self.negotiation_revision),
+					token: Some(token),
+					endpoint: endpoint.clone(),
+				}))?;
 			}
 		} else if let Some(session) = &secret
 			&& self

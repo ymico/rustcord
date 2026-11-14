@@ -350,7 +350,7 @@ fn encode_loop(
 				if let Ok(mut slot) = preview.try_lock() {
 					*slot = Some(image);
 				}
-				next_preview = now + Duration::from_millis(100);
+				next_preview = now + Duration::from_millis(33);
 				wake();
 			}
 		}
@@ -704,32 +704,28 @@ pub(super) fn preview_frame(frame: &RawFrame) -> Result<image::RgbaImage, &'stat
 		.min(1.0);
 	let width = (f64::from(frame.width) * scale).round().max(1.0) as u32;
 	let height = (f64::from(frame.height) * scale).round().max(1.0) as u32;
-	if frame.width == width && frame.height == height {
-		let mut buffer = vec![0u8; (width * height * 4) as usize];
-		let row_bytes = (width * 4) as usize;
-		for y in 0..height as usize {
-			let src_row = &frame.data[y * frame.stride..y * frame.stride + row_bytes];
-			let dst_row = &mut buffer[y * row_bytes..(y + 1) * row_bytes];
-			for (src, dst) in src_row.chunks_exact(4).zip(dst_row.chunks_exact_mut(4)) {
-				dst[0] = src[2];
-				dst[1] = src[1];
-				dst[2] = src[0];
-				dst[3] = 255;
+
+	let mut buffer = vec![0u8; (width * height * 4) as usize];
+	let x_map: Vec<usize> = (0..width as usize)
+		.map(|x| (x * frame.width as usize / width as usize) * 4)
+		.collect();
+
+	for y in 0..height as usize {
+		let source_y = y * frame.height as usize / height as usize;
+		let src_row = source_y * frame.stride;
+		let dst_row = y * (width as usize * 4);
+		for (x, &src_x) in x_map.iter().enumerate() {
+			let src_offset = src_row + src_x;
+			let dst_offset = dst_row + x * 4;
+			if src_offset + 3 < frame.data.len() {
+				buffer[dst_offset] = frame.data[src_offset + 2];
+				buffer[dst_offset + 1] = frame.data[src_offset + 1];
+				buffer[dst_offset + 2] = frame.data[src_offset];
+				buffer[dst_offset + 3] = 255;
 			}
 		}
-		return image::RgbaImage::from_raw(width, height, buffer).ok_or("Invalid screen frame");
 	}
-	Ok(image::RgbaImage::from_fn(width, height, |x, y| {
-		let source_x = (x * frame.width / width) as usize;
-		let source_y = (y * frame.height / height) as usize;
-		let offset = source_y * frame.stride + source_x * 4;
-		image::Rgba([
-			frame.data[offset + 2],
-			frame.data[offset + 1],
-			frame.data[offset],
-			255,
-		])
-	}))
+	image::RgbaImage::from_raw(width, height, buffer).ok_or("Invalid screen frame")
 }
 
 #[cfg(any(test, target_os = "macos"))]

@@ -141,7 +141,7 @@ pub(super) fn run(
 		return directshow::run(shared, None, emit);
 	}
 	let source = selected_camera(cameras, device)?;
-	let (send, receive) = mpsc::sync_channel(1);
+	let (send, receive) = mpsc::sync_channel(2);
 	let stride = Arc::new(AtomicI32::new(0));
 	let callback: IMFSourceReaderCallback = Callback {
 		send,
@@ -226,11 +226,9 @@ pub(super) fn run(
 		reader
 	};
 	let mut last_frame = Instant::now();
+	// Prime the async reader with an initial sample request before the loop starts.
+	unsafe { reader.ReadSample(VIDEO, 0, None, None, None, None) }.map_err(|_| UNAVAILABLE)?;
 	while !shared.stopped.load(Ordering::Acquire) {
-		let requested = Instant::now();
-		// SAFETY: Async reader returns immediately; callbacks never request more
-		// samples. A stalled device cannot trap the worker in synchronous ReadSample.
-		unsafe { reader.ReadSample(VIDEO, 0, None, None, None, None) }.map_err(|_| UNAVAILABLE)?;
 		let result = loop {
 			if shared.stopped.load(Ordering::Acquire) {
 				return Ok(());
@@ -244,6 +242,11 @@ pub(super) fn run(
 				Err(mpsc::RecvTimeoutError::Disconnected) => return Err(TIMEOUT),
 			}
 		};
+		// Immediately request the next frame so hardware capture runs concurrently with encode.
+		if !shared.stopped.load(Ordering::Acquire) {
+			unsafe { reader.ReadSample(VIDEO, 0, None, None, None, None) }
+				.map_err(|_| UNAVAILABLE)?;
+		}
 		if result.changed {
 			stride.store(output_stride(&reader)?, Ordering::Release);
 		}
@@ -252,9 +255,6 @@ pub(super) fn run(
 			if !shared.stopped.load(Ordering::Acquire) {
 				emit(rgb)?;
 			}
-		}
-		if let Some(remaining) = FRAME_INTERVAL.checked_sub(requested.elapsed()) {
-			thread::sleep(remaining);
 		}
 	}
 	Ok(())

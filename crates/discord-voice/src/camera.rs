@@ -465,7 +465,7 @@ mod macos {
 				let Ok(mut last) = state.last.try_lock() else {
 					return;
 				};
-				if last.elapsed() < FRAME_INTERVAL {
+				if last.elapsed() < FRAME_INTERVAL.saturating_sub(Duration::from_millis(10)) {
 					return;
 				}
 				*last = Instant::now();

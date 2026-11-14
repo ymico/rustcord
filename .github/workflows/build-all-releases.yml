@@ -45,7 +45,7 @@ jobs:
 
   build-macos:
     name: Build macOS (arm64)
-    runs-on: macos-15
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.98.1
@@ -93,6 +93,7 @@ jobs:
   publish-release:
     name: Publish Release Assets
     needs: [build-windows, build-macos, build-linux]
+    if: always() && !cancelled() && (needs.build-windows.result == 'success' || needs.build-macos.result == 'success' || needs.build-linux.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write

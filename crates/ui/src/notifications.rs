@@ -319,8 +319,6 @@ impl MessagingUi {
 				design::rail_name(&response, &label);
 				response.context_menu(|ui| {
 					ui.set_width(232.0);
-					self.server_menu.quests_item(ui);
-					ui.separator();
 					self.server_menu.all_read_item(ui, state);
 				});
 				if response.clicked() {

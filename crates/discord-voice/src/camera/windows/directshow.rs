@@ -81,7 +81,7 @@ impl ISampleGrabberCB_Impl for Callback_Impl {
 						return Err("Camera changed its video format; restart the camera");
 					}
 				}
-				if last.0.elapsed() < FRAME_INTERVAL {
+				if last.0.elapsed() < FRAME_INTERVAL.saturating_sub(Duration::from_millis(10)) {
 					return Ok(None);
 				}
 				last.0 = Instant::now();
@@ -473,7 +473,7 @@ pub(super) fn run(
 		if !bounded_allocator {
 			return Err(INVALID);
 		}
-		let (send, receive) = mpsc::sync_channel(1);
+		let (send, receive) = mpsc::sync_channel(2);
 		let callback: ISampleGrabberCB = Callback {
 			send,
 			last: Mutex::new((Instant::now() - FRAME_INTERVAL, false)),

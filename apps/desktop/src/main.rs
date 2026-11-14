@@ -46,7 +46,6 @@ mod polls_demo;
 #[cfg(feature = "demo")]
 mod post_menu_demo;
 mod proxy_auth;
-mod quests;
 mod reading_settings;
 mod registered_games;
 #[cfg(feature = "demo")]
@@ -971,7 +970,6 @@ impl SessionEnd {
 	}
 }
 struct Desktop {
-	quests: quests::Quests,
 	proxy_auth: proxy_auth::Authentication,
 	api_proxy: tokio::sync::watch::Sender<Option<discord_api::proxy::ApiProxy>>,
 	extensions: extension_bridge::Bridge,
@@ -2331,7 +2329,6 @@ impl Desktop {
 			.map(|menu| (menu, ui::i18n::Language::System))
 		};
 		Ok(Self {
-			quests: quests::Quests::default(),
 			proxy_auth: proxy_auth::Authentication::default(),
 			api_proxy: tokio::sync::watch::channel(None).0,
 			extensions: extension_bridge::Bridge::default(),
@@ -6704,44 +6701,6 @@ impl eframe::App for Desktop {
 			}
 		}
 		ui::design::window_resize(&ctx);
-		let quest_offline = self.fixture_only
-			|| self.state.demo
-			|| self.state.auth != AuthState::Authenticated
-			|| !self.state.gateway_connected;
-		let quest_voice = self.state.voice.active.as_ref().and_then(|call| {
-			if !matches!(
-				call.phase,
-				client_core::voice::Phase::Connected | client_core::voice::Phase::Waiting
-			) {
-				return None;
-			}
-			self.state
-				.user
-				.as_ref()
-				.map(|user| discord_api::quests::VoiceContext {
-					user: user.id,
-					channel: call.channel,
-					guild: call.guild,
-				})
-		});
-		if self.messaging.take_quests_requested() {
-			self.quests.open = true;
-		}
-		self.quests.show(
-			&ctx,
-			&self.runtime,
-			quests::Session {
-				secret: if quest_offline {
-					None
-				} else {
-					self.current_login.clone()
-				},
-				generation: self.state.generation,
-				offline: quest_offline,
-				proxy: self.api_proxy.subscribe(),
-				voice: quest_voice,
-			},
-		);
 		self.frame_metrics.reflows = self.messaging.timeline_reflows();
 		self.frame_metrics.finish();
 	}
