@@ -39,24 +39,3 @@ jobs:
           TAG_NAME: ${{ inputs.tag }}
         run: |
           gh release upload "$TAG_NAME" rustcord-macos-arm64.zip --clobber --repo ymico/rustcord
-          
-          # Update release notes to mark macOS ready
-          gh release edit "$TAG_NAME" --repo ymico/rustcord --notes "### Rustcord v0.1.0 - Cross-Platform Release
-
-          Native Discord client written in Rust.
-
-          #### What's Included:
-          - **Quests Automation**: Automatic detection, heartbeat tracking, and multi-endpoint reward claiming for play-on-desktop, stream, and video quests. Clean dismissable badge in the bottom-right corner and Home context menu access.
-          - **Voice & Calling**: Non-overlapping DM call header with context-aware hang up button, proper disconnect handling.
-          - **Audio Cues**: Added official Discord stream stop sound (\`ScreenShareOff\`) cue when ending local or remote screen shares.
-          - **Screen Sharing**: High-performance 60 FPS screen capture and preview on Linux without CPU lag.
-          - **Pinned Direct Messages**: Seamless synchronization of pinned/favorited DMs from Discord account settings (\`PreloadedUserSettings.Favorites\`).
-          - **Closeable DM Profile Pane**: Close (×) button on docked DM profile pane to quickly restore full-width chat.
-          - **Animated Avatars**: Animated avatars play during voice channels without frame eviction bugs.
-          - **Avatar Presence Badges**: Clean presence badge metrics for both circle and square avatars.
-          - **Pixel Mode & Themes**: Pixel mode rendering, square avatars, and fully custom color palettes.
-
-          #### Downloads
-          - **Linux (x86_64)**: \`rustcord-linux-x86_64.tar.gz\`
-          - **Windows (x86_64)**: \`rustcord-windows-x86_64.zip\` & \`rustcord.exe\`
-          - **macOS (Apple Silicon arm64)**: \`rustcord-macos-arm64.zip\`"
