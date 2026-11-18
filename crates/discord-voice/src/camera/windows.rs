@@ -12,7 +12,6 @@ use std::{
 		atomic::{AtomicI32, Ordering},
 		mpsc::{self, SyncSender},
 	},
-	thread,
 	time::{Duration, Instant},
 };
 use windows::{

@@ -309,7 +309,7 @@ fn encode_loop(
 	let mut first_frame_deadline = Some(Instant::now() + Duration::from_secs(15));
 	let mut next_frame = Instant::now();
 	let mut next_preview = Instant::now();
-	let mut latest_frame = None;
+	let mut latest_frame: Option<RawFrame> = None;
 
 	while !stop.load(Ordering::Acquire) && !send.is_closed() {
 		#[cfg(target_os = "windows")]
